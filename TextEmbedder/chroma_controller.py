@@ -1,4 +1,4 @@
-from pembot.TextEmbedder.chromadb_upload import add
+from pembot.TextEmbedder.chromadb_upload import add, clear_collection
 import uuid
 from pembot.AnyToText.convertor import chunk_text
 import re
@@ -48,7 +48,7 @@ def make_it_an_id(file_name):
     return result_id
 
 
-def upload_textfile(file_path):
+def upload_textfile(file_path, collection_name= 'jds'):
 
     try:
         with open(str(file_path), "r") as md_file:
@@ -56,6 +56,12 @@ def upload_textfile(file_path):
 
         # Chunk the document
         chunks = chunk_text(full_document_text, chunk_size=1000, overlap_size=100) # Adjust chunk_size and overlap_size as needed
+
+        
+        #### IF WE ARE TRYING TO SEARCH INSIDE EACH DOCUMENT
+        clear_collection(collection_name)
+
+        ### IF GLOBAL SEARCH IS REQUIRED INSTEAD OF LOCAL, REMOVE THE ABOVE LINE
 
         # Add chunks to ChromaDB
         for i, chunk in enumerate(chunks):
@@ -65,9 +71,9 @@ def upload_textfile(file_path):
             chunk_id = f"{make_it_an_id(file_path.name)}_chunk_{i}_{random_suffix}"
             
             print(f"Adding chunk {i+1} with ID: {chunk_id}")
-            print(chunk)
+            # print(chunk)
 
-            add(ids=[chunk_id], docs=[chunk], collection_name="jds")
+            add(ids=[chunk_id], docs=[chunk], collection_name= collection_name)
 
     except FileNotFoundError:
         print(f"Error: The file '{file_path}' was not found.")

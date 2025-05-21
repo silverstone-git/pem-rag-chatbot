@@ -6,6 +6,12 @@ def add(collection_name: str, docs: list[str], ids: list[str]):
     coll= chroma_client.get_or_create_collection(name= collection_name)
     coll.add(documents= docs, ids= ids)
 
+
+def clear_collection(collection_name):
+    coll= chroma_client.delete_collection(name= collection_name)
+
+
+
 # Assume this helper function exists and returns a list of dictionaries
 # like [{ 'id': 'chunk_id', 'document': 'chunk string' }]
 def querydb(collection_name, query, n_results=5):

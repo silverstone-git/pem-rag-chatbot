@@ -75,14 +75,15 @@ def get_fieldvals(docs_dir: Path, text_out_dir: Path, required_fields: list[tupl
                 converted= Convertor(docfile, text_out_dir)
             print("markdown made.", text_out_dir)
 
-            upload_textfile(expected_file)
+            upload_textfile(expected_file, collection_name= "jds")
             print("its in the db now")
 
             query= make_query(required_fields)
             filename_string= file_root + '.json'
-            llm_output= rag_query_ollama(query)
-            save_to_json_file(remove_think_tags(llm_output), text_out_dir / 'json' / filename_string)
-            print(llm_output)
+            llm_output= rag_query_ollama(query, no_of_fields= len(required_fields))
+            jsonstr= remove_think_tags(llm_output)
+            save_to_json_file(jsonstr, text_out_dir / 'json' / filename_string)
+            print(jsonstr)
 
 
 
@@ -90,11 +91,9 @@ def initit():
     local_project_files_dir= Path.cwd().parent
     docs= local_project_files_dir / 'documents'
     text_out= local_project_files_dir / 'text-outputs'
-    vector_db= local_project_files_dir / 'chroma'
 
     docs.mkdir(parents= True, exist_ok= True)
     text_out.mkdir(parents= True, exist_ok= True)
-    vector_db.mkdir(parents= True, exist_ok= True)
 
     # [(field name, field type, field description, default value), ...]
     required_fields= [
@@ -102,6 +101,9 @@ def initit():
             ('experience', 'number', 'The amount of experience in years the company requires for the role', 'NaN'),
             ('skills', 'string[]', 'A list of skills which are required for this job. Example: ["Python", "Data Analysis"]', '[]'),
             ('role', 'string', 'The name of the role the organization is hiring for', 'unknown'),
+            ('role_description', 'string', 'The overall description of the role the organization is hiring for', 'unknown'),
+
+            # eligible graduation degrees
 
         ]
 

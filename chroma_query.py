@@ -2,7 +2,7 @@ import ollama
 from TextEmbedder.chromadb_upload import querydb, add
 import re
 
-def rag_query_ollama(user_query: str, ollama_model_name: str = "qwen3:4b", ollama_base_url: str = "http://localhost:11434"):
+def rag_query_ollama(user_query: str, ollama_model_name: str = "qwen3:4b", ollama_base_url: str = "http://localhost:11434", no_of_fields= 4):
     """
     Performs a RAG (Retrieval Augmented Generation) query using a Hugging Face
     embedding model, ChromaDB for retrieval, and a local Ollama model for generation.
@@ -18,7 +18,7 @@ def rag_query_ollama(user_query: str, ollama_model_name: str = "qwen3:4b", ollam
 
     # print("Step 2: Fetching relevant chunks from ChromaDB...")
     # You'll need to define your collection name
-    relevant_chunks = querydb("jds", user_query, n_results=3) # Fetch top 3 relevant chunks
+    relevant_chunks = querydb("jds", user_query, n_results=no_of_fields) # Fetch top 3 relevant chunks
 
     if not relevant_chunks:
         # print("No relevant chunks found in ChromaDB. Generating response without context.")
