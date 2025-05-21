@@ -1,2 +1,6 @@
 *.txt
 TextEmbedder/__pycache__/
+pdf2markdown/
+__pycache__/
+chroma/
+AnyToText/__pycache__/
