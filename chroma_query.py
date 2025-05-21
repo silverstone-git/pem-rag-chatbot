@@ -2,7 +2,7 @@ import ollama
 from TextEmbedder.chromadb_upload import querydb, add
 import re
 
-def rag_query_ollama(user_query: str, ollama_model_name: str = "llama2", ollama_base_url: str = "http://localhost:11434"):
+def rag_query_ollama(user_query: str, ollama_model_name: str = "qwen3:4b", ollama_base_url: str = "http://localhost:11434"):
     """
     Performs a RAG (Retrieval Augmented Generation) query using a Hugging Face
     embedding model, ChromaDB for retrieval, and a local Ollama model for generation.
