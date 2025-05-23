@@ -48,14 +48,14 @@ def make_it_an_id(file_name):
     return result_id
 
 
-def upload_textfile(file_path, collection_name= 'jds'):
+def upload_textfile(file_path, collection_name= 'jds', chunk_size= 1000):
 
     try:
         with open(str(file_path), "r") as md_file:
             full_document_text = md_file.read()
 
         # Chunk the document
-        chunks = chunk_text(full_document_text, chunk_size=1000, overlap_size=100) # Adjust chunk_size and overlap_size as needed
+        chunks = chunk_text(full_document_text, chunk_size=chunk_size, overlap_size=100) # Adjust chunk_size and overlap_size as needed
 
         
         #### IF WE ARE TRYING TO SEARCH INSIDE EACH DOCUMENT

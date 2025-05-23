@@ -4,3 +4,4 @@ pdf2markdown/
 __pycache__/
 chroma/
 AnyToText/__pycache__/
+schema/

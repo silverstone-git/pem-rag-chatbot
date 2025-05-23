@@ -25,7 +25,7 @@ class Convertor():
             print("the file was json")
         elif mt == 'application/pdf':
             print("the file was pdf, outputting in: ", output_path)
-            extractor= MarkdownPDFExtractor(str(myfile), output_path= str(output_path))
+            extractor= MarkdownPDFExtractor(str(myfile), output_path= str(output_path), page_delimiter= "___________________________ NEXT PAGE ___________________________")
             extractor.extract()
 
             base_name, _ = os.path.splitext(myfile.name)

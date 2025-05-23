@@ -1,20 +1,55 @@
 import ollama
 from TextEmbedder.chromadb_upload import querydb, add
 import re
+from google import genai
+import os
+from pembot.schema.structure import FineStructure
 
-def rag_query_ollama(user_query: str, ollama_model_name: str = "qwen3:4b", ollama_base_url: str = "http://localhost:11434", no_of_fields= 4):
+
+def gemini_query(rag_prompt, model_name):
+
+    client = genai.Client(api_key= os.environ.get("GEMINI_API_KEY"))
+    response = client.models.generate_content(
+        model= model_name,
+        contents= rag_prompt,
+        config={
+            "response_mime_type": "application/json",
+            "response_schema": FineStructure,
+        },
+    )
+
+    # Use instantiated objects ..
+    outobject = response.parsed
+    print(outobject)
+
+    # Use the response as a JSON string.
+    return response.text
+
+
+
+def rag_query_llm(user_query: str, model_name: str = "qwen3:4b", ollama_base_url: str = "http://localhost:11434", no_of_fields= 4):
     """
     Performs a RAG (Retrieval Augmented Generation) query using a Hugging Face
     embedding model, ChromaDB for retrieval, and a local Ollama model for generation.
 
     Args:
         user_query (str): The user's query.
-        ollama_model_name (str): The name of the Ollama model to use (e.g., "llama2", "mistral").
+        model_name (str): The name of the Ollama model to use (e.g., "llama2", "mistral").
         ollama_base_url (str): The base URL for the local Ollama instance.
 
     Returns:
         str: The generated response from the Ollama model.
     """
+
+    models = ollama.list()
+    found= False
+
+    for model in models.models:
+        print(model.model)
+        if model.model == model_name:
+            found= True
+            break
+
 
     # print("Step 2: Fetching relevant chunks from ChromaDB...")
     # You'll need to define your collection name
@@ -37,42 +72,61 @@ def rag_query_ollama(user_query: str, ollama_model_name: str = "qwen3:4b", ollam
     {context}
 
     Question: {user_query}
-
-    Answer:
     """
     
     # print("Step 3: Calling Ollama model with RAG prompt...")
     # print("final prompt: ")
     # print(rag_prompt)
-    try:
-        # You can use ollama.chat or ollama.generate depending on your model and preference
-        # ollama.chat is generally preferred for conversational models.
-        response = ollama.chat(
-            model=ollama_model_name,
-            messages=[{'role': 'user', 'content': rag_prompt}],
-            options={"base_url": ollama_base_url} # Ensure the base URL is set
-        )
-        return response['message']['content']
-    except ollama.ResponseError as e:
-        print(f"Error calling Ollama API: {e}")
-        return f"Error: Could not get a response from Ollama. Please check if Ollama is running and the model '{ollama_model_name}' is pulled."
-    except Exception as e:
-        print(f"An unexpected error occurred while calling Ollama: {e}")
-        return "An unexpected error occurred."
+    if found:
+        try:
+            # You can use ollama.chat or ollama.generate depending on your model and preference
+            # ollama.chat is generally preferred for conversational models.
+            response = ollama.chat(
+                model=model_name,
+                messages=[{'role': 'user', 'content': rag_prompt}],
+                options={"base_url": ollama_base_url} # Ensure the base URL is set
+            )
+            return response['message']['content']
+        except ollama.ResponseError as e:
+            print(f"Error calling Ollama API: {e}")
+            return f"Error: Could not get a response from Ollama. Please check if Ollama is running and the model '{model_name}' is pulled."
+        except Exception as e:
+            print(f"An unexpected error occurred while calling Ollama: {e}")
+            return "An unexpected error occurred."
+    elif 'gemini' in model_name:
+        return gemini_query(rag_prompt, model_name= model_name)
+    else:
+        return '{}'
 
 
-def remove_think_tags(text):
+
+def remove_bs(text):
     """
-    Removes everything between <think></think> tags in a string.
+    Removes everything between <think></think> tags and any text outside of JSON curly brackets.
 
     Args:
         text (str): The input string.
 
     Returns:
-        str: The string with text between <think></think> tags removed.
+        str: The string with text between <think></think> tags removed and only the
+             content within the outermost JSON curly brackets.
+             Returns an empty string if no valid JSON is found.
     """
-    pattern = r'<think>.*?</think>'  # Non-greedy match for text between tags
-    return re.sub(pattern, '', text, flags=re.DOTALL)
+    # 1. Remove <think></think> tags
+    think_pattern = r'<think>.*?</think>'
+    text_without_think = re.sub(think_pattern, '', text, flags=re.DOTALL)
+
+    # 2. Extract JSON content
+    # This regex looks for the first opening curly brace and the last closing curly brace.
+    # It assumes the JSON structure is well-formed within the string.
+    json_match = re.search(r'\{(.*)\}', text_without_think, re.DOTALL)
+
+    if json_match:
+        json_content_str = "{" + json_match.group(1) + "}"
+        return json_content_str
+    else:
+        return ""
+
 
 if __name__ == "__main__":
     ctx= [
@@ -94,17 +148,17 @@ if __name__ == "__main__":
     query = "What does HCLTech specialize in?"
     model_name= "qwen3:4b"
     print(query)
-    response = rag_query_ollama(user_query= query, ollama_model_name=model_name)
+    response = rag_query_llm(user_query= query, model_name=model_name)
     # print("\n--- RAG Response ---")
-    print(remove_think_tags(response))
+    print(remove_bs(response))
 
     query2 = "When was HCLTech founded?"
     print(query2)
-    response2 = rag_query_ollama(query2, ollama_model_name= model_name)
-    print(remove_think_tags(response2))
+    response2 = rag_query_llm(query2, model_name= model_name)
+    print(remove_bs(response2))
 
     query3 = "Tell me about their marketing strategies."
-    response3 = rag_query_ollama(query3, ollama_model_name= model_name)
+    response3 = rag_query_llm(query3, model_name= model_name)
     print(query3)
     # print("\n--- RAG Response 3 (Expected to be without context) ---")
-    print(remove_think_tags(response3))
+    print(remove_bs(response3))

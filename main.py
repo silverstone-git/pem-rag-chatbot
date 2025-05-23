@@ -1,9 +1,12 @@
 from pathlib import Path
 from pembot.AnyToText.convertor import Convertor
 from TextEmbedder.chroma_controller import upload_textfile
-from pembot.chroma_query import rag_query_ollama, remove_think_tags
+from pembot.chroma_query import rag_query_llm, remove_bs
 import os
-import json # Added for json operations
+import json
+from schema.structure import required_fields
+
+
 
 
 def make_query(required_fields: list[tuple[str, str, str, str]]):
@@ -59,7 +62,7 @@ def save_to_json_file(llm_output: str, filepath: Path):
     except Exception as e:
         print(f"An unexpected error occurred in save_to_json_file: {e}")
 
-def get_fieldvals(docs_dir: Path, text_out_dir: Path, required_fields: list[tuple[str, str, str, str]]): 
+def get_fieldvals(docs_dir: Path, text_out_dir: Path, required_fields: list[tuple[str, str, str, str]], chunk_size: int = 1000): 
     # give required output fields 
     # take the documents
     # convert to text
@@ -67,21 +70,27 @@ def get_fieldvals(docs_dir: Path, text_out_dir: Path, required_fields: list[tupl
     # query the required fields
 
     for docfile in docs_dir.iterdir():
-        if docfile.is_file: 
-            file_root= os.path.splitext(docfile.name)[0]
+
+        file_root= os.path.splitext(docfile.name)[0]
+        expected_file= text_out_dir / 'json' / (file_root + '.json')
+
+        if docfile.is_file and not (expected_file).exists(): 
 
             expected_file= text_out_dir / (file_root + '.md')
             if not (expected_file).exists():
                 converted= Convertor(docfile, text_out_dir)
             print("markdown made.", text_out_dir)
 
-            upload_textfile(expected_file, collection_name= "jds")
+            upload_textfile(expected_file, collection_name= "jds", chunk_size= chunk_size)
             print("its in the db now")
 
             query= make_query(required_fields)
+            print("full query is: ")
+            print(query)
             filename_string= file_root + '.json'
-            llm_output= rag_query_ollama(query, no_of_fields= len(required_fields))
-            jsonstr= remove_think_tags(llm_output)
+            llm_output= rag_query_llm(query, model_name= "gemini-2.5-flash-preview-05-20", no_of_fields= len(required_fields))
+            # llm_output= rag_query_llm(query, no_of_fields= len(required_fields))
+            jsonstr= remove_bs(llm_output)
             save_to_json_file(jsonstr, text_out_dir / 'json' / filename_string)
             print(jsonstr)
 
@@ -95,19 +104,7 @@ def initit():
     docs.mkdir(parents= True, exist_ok= True)
     text_out.mkdir(parents= True, exist_ok= True)
 
-    # [(field name, field type, field description, default value), ...]
-    required_fields= [
-            ('org', 'string', 'The name of the company which is organizing the competition', 'anonymous'),
-            ('experience', 'number', 'The amount of experience in years the company requires for the role', 'NaN'),
-            ('skills', 'string[]', 'A list of skills which are required for this job. Example: ["Python", "Data Analysis"]', '[]'),
-            ('role', 'string', 'The name of the role the organization is hiring for', 'unknown'),
-            ('role_description', 'string', 'The overall description of the role the organization is hiring for', 'unknown'),
-
-            # eligible graduation degrees
-
-        ]
-
-    get_fieldvals(docs, text_out, required_fields)
+    get_fieldvals(docs, text_out, required_fields, chunk_size= 600)
 
 
 if __name__ == "__main__":
