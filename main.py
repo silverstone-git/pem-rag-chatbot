@@ -72,16 +72,19 @@ def get_fieldvals(docs_dir: Path, text_out_dir: Path, required_fields: list[tupl
     for docfile in docs_dir.iterdir():
 
         file_root= os.path.splitext(docfile.name)[0]
-        expected_file= text_out_dir / 'json' / (file_root + '.json')
+        expected_json= text_out_dir / 'json' / (file_root + '.json')
 
-        if docfile.is_file and not (expected_file).exists(): 
+        if docfile.is_file and not (expected_json).exists(): 
 
-            expected_file= text_out_dir / (file_root + '.md')
-            if not (expected_file).exists():
+            expected_markdown= text_out_dir / (file_root + '.md')
+            if not (expected_markdown).exists():
                 converted= Convertor(docfile, text_out_dir)
             print("markdown made.", text_out_dir)
 
-            upload_textfile(expected_file, collection_name= "jds", chunk_size= chunk_size)
+            if expected_json.exists():
+                return
+
+            upload_textfile(expected_markdown, collection_name= "jds", chunk_size= chunk_size)
             print("its in the db now")
 
             query= make_query(required_fields)
