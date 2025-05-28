@@ -1,14 +1,12 @@
 import ollama
 from TextEmbedder.chromadb_upload import querydb, add
 import re
-from google import genai
 import os
 from pembot.schema.structure import FineStructure
 
 
-def gemini_query(rag_prompt, model_name):
+def gemini_query(client, rag_prompt, model_name):
 
-    client = genai.Client(api_key= os.environ.get("GEMINI_API_KEY"))
     response = client.models.generate_content(
         model= model_name,
         contents= rag_prompt,
@@ -27,7 +25,7 @@ def gemini_query(rag_prompt, model_name):
 
 
 
-def rag_query_llm(user_query: str, model_name: str = "qwen3:4b", ollama_base_url: str = "http://localhost:11434", no_of_fields= 4):
+def rag_query_llm(chroma_client, genai_client, user_query: str, required_fields_descriptions: list[str], model_name: str = "qwen3:4b", ollama_base_url: str = "http://localhost:11434", no_of_fields= 4):
     """
     Performs a RAG (Retrieval Augmented Generation) query using a Hugging Face
     embedding model, ChromaDB for retrieval, and a local Ollama model for generation.
@@ -53,7 +51,7 @@ def rag_query_llm(user_query: str, model_name: str = "qwen3:4b", ollama_base_url
 
     # print("Step 2: Fetching relevant chunks from ChromaDB...")
     # You'll need to define your collection name
-    relevant_chunks = querydb("jds", user_query, n_results=no_of_fields) # Fetch top 3 relevant chunks
+    relevant_chunks = querydb(chroma_client, "jds", user_query, required_fields_descriptions, n_results=no_of_fields) # Fetch top 3 relevant chunks
 
     if not relevant_chunks:
         # print("No relevant chunks found in ChromaDB. Generating response without context.")
@@ -94,7 +92,7 @@ def rag_query_llm(user_query: str, model_name: str = "qwen3:4b", ollama_base_url
             print(f"An unexpected error occurred while calling Ollama: {e}")
             return "An unexpected error occurred."
     elif 'gemini' in model_name:
-        return gemini_query(rag_prompt, model_name= model_name)
+        return gemini_query(genai_client, rag_prompt, model_name= model_name)
     else:
         return '{}'
 

@@ -1,34 +1,27 @@
+from google.genai import types
 import requests
 import json
 import os
+from google import genai
 
 
-def get_embedding(text):
-    api_key = os.environ['GEMINI_API_KEY']
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key={api_key}"
+def get_embedding(client, text):
 
-    data = {
-        "model": "models/text-embedding-004",
-        "content": {
-            "parts": [{
-                "text": text
-            }]
-        }
-    }
+    result = client.models.embed_content(
+        model="gemini-embedding-exp-03-07",
+        contents= text,
+        config= types.EmbedContentConfig(task_type= "RETRIEVAL_DOCUMENT"),
+    )
 
-    headers = {
-        'Content-Type': 'application/json'
-    }
-
-    response = requests.post(url, headers=headers, data=json.dumps(data))
-
-    if response.status_code == 200:
-        resJ = response.json()
-        return resJ['embedding']['values']
+    if result:
+        return result.embeddings[0].values
     else:
-        print(f"Error: {response.status_code}, {response.text}")
+        print(f"Error: {result}")
         #raise ValueError("Error communicating with the gemini embedding API")
 
 
 if __name__ == "__main__":
-    print(get_embedding("send bobs"))
+
+    api_key = os.environ['GEMINI_API_KEY']
+    genai_client= genai.Client(api_key= api_key)
+    print(get_embedding(genai_client, "send bobs"))

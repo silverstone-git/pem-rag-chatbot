@@ -1,12 +1,13 @@
 from pathlib import Path
+
+import chromadb
+from google import genai
 from pembot.AnyToText.convertor import Convertor
 from TextEmbedder.chroma_controller import upload_textfile
 from pembot.chroma_query import rag_query_llm, remove_bs
 import os
 import json
 from schema.structure import required_fields
-
-
 
 
 def make_query(required_fields: list[tuple[str, str, str, str]]):
@@ -49,6 +50,7 @@ def save_to_json_file(llm_output: str, filepath: Path):
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(json_data, f, indent=4, ensure_ascii=False)
         print(f"Successfully saved JSON to {filepath}")
+        return json_data
     except json.JSONDecodeError:
         print(f"Error: LLM output is not valid JSON. Could not save to {filepath}")
         print("LLM Output was:\n", llm_output)
@@ -62,7 +64,7 @@ def save_to_json_file(llm_output: str, filepath: Path):
     except Exception as e:
         print(f"An unexpected error occurred in save_to_json_file: {e}")
 
-def get_fieldvals(docs_dir: Path, text_out_dir: Path, required_fields: list[tuple[str, str, str, str]], chunk_size: int = 1000): 
+def get_fieldvals(chroma_client, docs_dir: Path, text_out_dir: Path, required_fields: list[tuple[str, str, str, str]], chunk_size: int = 1000): 
     # give required output fields 
     # take the documents
     # convert to text
@@ -84,22 +86,27 @@ def get_fieldvals(docs_dir: Path, text_out_dir: Path, required_fields: list[tupl
             if expected_json.exists():
                 return
 
-            upload_textfile(expected_markdown, collection_name= "jds", chunk_size= chunk_size)
+            upload_textfile(chroma_client, expected_markdown, collection_name= "jds", chunk_size= chunk_size)
             print("its in the db now")
 
             query= make_query(required_fields)
             print("full query is: ")
             print(query)
             filename_string= file_root + '.json'
-            llm_output= rag_query_llm(query, model_name= "gemini-2.5-flash-preview-05-20", no_of_fields= len(required_fields))
+            llm_output= rag_query_llm(chroma_client, genai_client, query, required_fields_descriptions= list(map(lambda x: x[1], required_fields)),  model_name= "gemini-2.5-flash-preview-05-20", no_of_fields= int(2 * len(required_fields)))
+
             # llm_output= rag_query_llm(query, no_of_fields= len(required_fields))
             jsonstr= remove_bs(llm_output)
-            save_to_json_file(jsonstr, text_out_dir / 'json' / filename_string)
             print(jsonstr)
 
+            json_data= save_to_json_file(jsonstr, text_out_dir / 'json' / filename_string)
+            if json_data:
+                return json_data
 
 
-def initit():
+
+def initit(genai_client, chroma_client):
+
     local_project_files_dir= Path.cwd().parent
     docs= local_project_files_dir / 'documents'
     text_out= local_project_files_dir / 'text-outputs'
@@ -107,8 +114,14 @@ def initit():
     docs.mkdir(parents= True, exist_ok= True)
     text_out.mkdir(parents= True, exist_ok= True)
 
-    get_fieldvals(docs, text_out, required_fields, chunk_size= 600)
+    get_fieldvals(chroma_client, docs, text_out, required_fields, chunk_size= 600)
 
 
 if __name__ == "__main__":
-    initit()
+
+    api_key = os.environ['GEMINI_API_KEY']
+    genai_client= genai.Client(api_key= api_key)
+
+    chroma_client = chromadb.PersistentClient('/home/cyto/dev/pem-rag-chatbot/chroma')
+
+    initit(genai_client, chroma_client)

@@ -48,7 +48,7 @@ def make_it_an_id(file_name):
     return result_id
 
 
-def upload_textfile(file_path, collection_name= 'jds', chunk_size= 1000):
+def upload_textfile(chroma_client, file_path, collection_name= 'jds', chunk_size= 1000):
 
     try:
         with open(str(file_path), "r") as md_file:
@@ -59,7 +59,7 @@ def upload_textfile(file_path, collection_name= 'jds', chunk_size= 1000):
 
         
         #### IF WE ARE TRYING TO SEARCH INSIDE EACH DOCUMENT
-        clear_collection(collection_name)
+        clear_collection(chroma_client, collection_name)
 
         ### IF GLOBAL SEARCH IS REQUIRED INSTEAD OF LOCAL, REMOVE THE ABOVE LINE
 
@@ -73,7 +73,7 @@ def upload_textfile(file_path, collection_name= 'jds', chunk_size= 1000):
             print(f"Adding chunk {i+1} with ID: {chunk_id}")
             # print(chunk)
 
-            add(ids=[chunk_id], docs=[chunk], collection_name= collection_name)
+            add(chroma_client, ids=[chunk_id], docs=[chunk], collection_name= collection_name)
 
     except FileNotFoundError:
         print(f"Error: The file '{file_path}' was not found.")

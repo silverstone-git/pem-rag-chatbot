@@ -1,20 +1,17 @@
-import chromadb
 
-chroma_client = chromadb.PersistentClient('/home/cyto/dev/pem-rag-chatbot/chroma')
-
-def add(collection_name: str, docs: list[str], ids: list[str]):
+def add(chroma_client, collection_name: str, docs: list[str], ids: list[str]):
     coll= chroma_client.get_or_create_collection(name= collection_name)
     coll.add(documents= docs, ids= ids)
 
 
-def clear_collection(collection_name):
+def clear_collection(chroma_client, collection_name):
     coll= chroma_client.delete_collection(name= collection_name)
 
 
 
 # Assume this helper function exists and returns a list of dictionaries
 # like [{ 'id': 'chunk_id', 'document': 'chunk string' }]
-def querydb(collection_name, query, n_results=5):
+def querydb(chroma_client, collection_name, query, required_fields_descriptions, n_results=5):
     """
     Helper function to query ChromaDB and return relevant chunks.
     """
@@ -24,7 +21,7 @@ def querydb(collection_name, query, n_results=5):
         collection = chroma_client.get_or_create_collection(name=collection_name)
         
         results = collection.query(
-            query_texts= [query],
+            query_texts= required_fields_descriptions,
             n_results=n_results,
         )
         

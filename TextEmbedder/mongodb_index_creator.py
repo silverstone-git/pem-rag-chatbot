@@ -1,15 +1,9 @@
-from pymongo import MongoClient
-from os import environ
 
-
-def run():
-    client = MongoClient(environ['MONGODB_PEM'])
+def create_vector_index(mongo_client, collection, index_name, num_dimensions: int):
     try:
-        database = client["pem"]
-        collection = database["blogs"]
 
         index = {
-            "name": "vector_index",
+            "name": f"{index_name}",
             "type": "vectorSearch",
             "definition": {
                 "fields": [
@@ -17,7 +11,7 @@ def run():
                         "type": "vector",
                         "path": "embedding",
                         "similarity": "dotProduct",
-                        "numDimensions": 768
+                        "numDimensions": num_dimensions
                     }
                 ]
             }
@@ -27,8 +21,8 @@ def run():
         result = collection.create_index(index)
         print(result)
     finally:
-        client.close()
+        mongo_client.close()
 
 if __name__ == "__main__":
-    run()
+    print("mongodb index creation file")
 
