@@ -83,8 +83,9 @@ def get_fieldvals(chroma_client, docs_dir: Path, text_out_dir: Path, required_fi
                 converted= Convertor(docfile, text_out_dir)
             print("markdown made.", text_out_dir)
 
+            # the case that convertor() made the json
             if expected_json.exists():
-                return
+                continue
 
             upload_textfile(chroma_client, expected_markdown, collection_name= "jds", chunk_size= chunk_size)
             print("its in the db now")
@@ -99,9 +100,7 @@ def get_fieldvals(chroma_client, docs_dir: Path, text_out_dir: Path, required_fi
             jsonstr= remove_bs(llm_output)
             print(jsonstr)
 
-            json_data= save_to_json_file(jsonstr, text_out_dir / 'json' / filename_string)
-            if json_data:
-                return json_data
+            save_to_json_file(jsonstr, text_out_dir / 'json' / filename_string)
 
 
 
