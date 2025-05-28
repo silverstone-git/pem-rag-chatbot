@@ -64,7 +64,7 @@ def save_to_json_file(llm_output: str, filepath: Path):
     except Exception as e:
         print(f"An unexpected error occurred in save_to_json_file: {e}")
 
-def get_fieldvals(chroma_client, docs_dir: Path, text_out_dir: Path, required_fields: list[tuple[str, str, str, str]], chunk_size: int = 1000): 
+def get_fieldvals(chroma_client, genai_client, docs_dir: Path, text_out_dir: Path, required_fields: list[tuple[str, str, str, str]], chunk_size: int = 1000): 
     # give required output fields 
     # take the documents
     # convert to text
@@ -113,7 +113,7 @@ def initit(genai_client, chroma_client):
     docs.mkdir(parents= True, exist_ok= True)
     text_out.mkdir(parents= True, exist_ok= True)
 
-    get_fieldvals(chroma_client, docs, text_out, required_fields, chunk_size= 600)
+    get_fieldvals(chroma_client, genai_client, docs, text_out, required_fields, chunk_size= 600)
 
 
 if __name__ == "__main__":
