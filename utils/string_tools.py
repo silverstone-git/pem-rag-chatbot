@@ -1,10 +1,5 @@
-from pembot.TextEmbedder.chromadb_upload import add, clear_collection
-import uuid
-from pembot.AnyToText.convertor import chunk_text
 import re
 import random
-from pathlib import Path
-
 
 def make_it_an_id(file_name):
     """
@@ -48,38 +43,3 @@ def make_it_an_id(file_name):
     return result_id
 
 
-def upload_textfile(chroma_client, file_path, collection_name= 'jds', chunk_size= 1000):
-
-    try:
-        with open(str(file_path), "r") as md_file:
-            full_document_text = md_file.read()
-
-        # Chunk the document
-        chunks = chunk_text(full_document_text, chunk_size=chunk_size, overlap_size=100) # Adjust chunk_size and overlap_size as needed
-
-        
-        #### IF WE ARE TRYING TO SEARCH INSIDE EACH DOCUMENT
-        clear_collection(chroma_client, collection_name)
-
-        ### IF GLOBAL SEARCH IS REQUIRED INSTEAD OF LOCAL, REMOVE THE ABOVE LINE
-
-        # Add chunks to ChromaDB
-        for i, chunk in enumerate(chunks):
-            # Generate a random substring for the ID
-            random_suffix = uuid.uuid4().hex[:8]  # Using first 8 chars of a UUID
-            # Create the unique ID for the chunk
-            chunk_id = f"{make_it_an_id(file_path.name)}_chunk_{i}_{random_suffix}"
-            
-            print(f"Adding chunk {i+1} with ID: {chunk_id}")
-            # print(chunk)
-
-            add(chroma_client, ids=[chunk_id], docs=[chunk], collection_name= collection_name)
-
-    except FileNotFoundError:
-        print(f"Error: The file '{file_path}' was not found.")
-    except Exception as e:
-        print(f"An error occurred: {e}")
-
-
-if __name__ == '__main__':
-    print("upload textfile and make it an id function")

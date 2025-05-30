@@ -1,12 +1,15 @@
 from pathlib import Path
 
-import chromadb
-from google import genai
+from huggingface_hub import InferenceClient
+from huggingface_hub.inference._providers import PROVIDER_T
+import ollama
+from pymongo import MongoClient
 from pembot.AnyToText.convertor import Convertor
-from TextEmbedder.chroma_controller import upload_textfile
-from pembot.chroma_query import rag_query_llm, remove_bs
+from pembot.TextEmbedder.mongodb_embedder import process_document_and_embed
+from pembot.query import rag_query_llm, remove_bs
 import os
 import json
+from pembot.utils.string_tools import make_it_an_id
 from schema.structure import required_fields
 
 
@@ -64,7 +67,7 @@ def save_to_json_file(llm_output: str, filepath: Path):
     except Exception as e:
         print(f"An unexpected error occurred in save_to_json_file: {e}")
 
-def get_fieldvals(chroma_client, genai_client, docs_dir: Path, text_out_dir: Path, required_fields: list[tuple[str, str, str, str]], chunk_size: int = 1000): 
+def make_document_summarization_and_embeddings(db_client, llm_client, inference_client, docs_dir: Path, text_out_dir: Path, required_fields: list[tuple[str, str, str, str]], chunk_size: int = 600, embedding_model: str= 'nomic-embed-text:v1.5', llm_provider_name: PROVIDER_T= "novita", model_name= "deepseek-ai/DeepSeek-R1-0528-Qwen3-8B", embeddings_collection: str= "doc_chunks", index_name= "test_search"): 
     # give required output fields 
     # take the documents
     # convert to text
@@ -75,6 +78,7 @@ def get_fieldvals(chroma_client, genai_client, docs_dir: Path, text_out_dir: Pat
 
         file_root= os.path.splitext(docfile.name)[0]
         expected_json= text_out_dir / 'json' / (file_root + '.json')
+        document_id= make_it_an_id(file_root)
 
         if docfile.is_file and not (expected_json).exists(): 
 
@@ -87,14 +91,16 @@ def get_fieldvals(chroma_client, genai_client, docs_dir: Path, text_out_dir: Pat
             if expected_json.exists():
                 continue
 
-            upload_textfile(chroma_client, expected_markdown, collection_name= "jds", chunk_size= chunk_size)
+            # text files will be chunked and stored in separate persistent vector collections
+            process_document_and_embed(db_client, llm_client, inference_client, expected_markdown, chunk_size= chunk_size, embedding_model= embedding_model, embeddings_collection_name= embeddings_collection)
             print("its in the db now")
 
             query= make_query(required_fields)
             print("full query is: ")
             print(query)
             filename_string= file_root + '.json'
-            llm_output= rag_query_llm(chroma_client, genai_client, query, required_fields_descriptions= list(map(lambda x: x[1], required_fields)),  model_name= "gemini-2.5-flash-preview-05-20", no_of_fields= int(2 * len(required_fields)))
+            required_fields_descriptions= list(map(lambda x: x[2], required_fields))
+            llm_output= rag_query_llm(db_client, llm_client, inference_client, query, document_id, required_fields_descriptions, no_of_fields= len(required_fields), llm_provider_name= llm_provider_name, model_name= model_name, embedding_model= embedding_model, embeddings_collection= embeddings_collection, index_name= index_name)
 
             # llm_output= rag_query_llm(query, no_of_fields= len(required_fields))
             jsonstr= remove_bs(llm_output)
@@ -103,8 +109,36 @@ def get_fieldvals(chroma_client, genai_client, docs_dir: Path, text_out_dir: Pat
             save_to_json_file(jsonstr, text_out_dir / 'json' / filename_string)
 
 
+def upload_summaries(json_dir: Path, docs_collection):
 
-def initit(genai_client, chroma_client):
+    for json_path in json_dir.iterdir():
+
+        base_name, _ = os.path.splitext(json_path.name)
+        corresponding_text_file= json_dir.parent / (base_name + ".md")
+
+        with open(str(json_path)) as json_file:
+            json_data= json.load(json_file)
+            with open(str(corresponding_text_file)) as text_file:
+                # docs_collection.insert_one({**json_data, "content": text_file.read()})
+
+                print("pushing doc: ", corresponding_text_file, json_path)
+                content_to_insert = text_file.read()
+
+                result = docs_collection.update_one(
+                    {"content": content_to_insert}, # Filter by the content field
+                    {"$setOnInsert": {**json_data, "content": content_to_insert}}, # Set these fields ONLY on insert
+                    upsert=True # Insert if no matching document is found
+                )
+
+                if result.upserted_id:
+                    print(f"Document inserted with _id: {result.upserted_id}")
+                else:
+                    print("Document with this content already existed. No new document inserted.")
+                    # You might need to find the existing document's ID if needed here
+
+
+
+def initit(db_client, llm_client, inference_client, chunk_size= 500, embedding_model= "BAAI/bge-en-icl", llm_provider_name: PROVIDER_T= "novita", model_name=  "deepseek-ai/DeepSeek-R1-0528-Qwen3-8B", embeddings_collection: str= "doc_chunks", index_name= "test_search"):
 
     local_project_files_dir= Path.cwd().parent
     docs= local_project_files_dir / 'documents'
@@ -113,14 +147,58 @@ def initit(genai_client, chroma_client):
     docs.mkdir(parents= True, exist_ok= True)
     text_out.mkdir(parents= True, exist_ok= True)
 
-    get_fieldvals(chroma_client, genai_client, docs, text_out, required_fields, chunk_size= 600)
+    #make_document_summarization_and_embeddings(db_client, llm_client, inference_client, docs, text_out, required_fields, chunk_size= chunk_size, embedding_model= embedding_model, llm_provider_name= llm_provider_name, model_name= model_name, embeddings_collection= embeddings_collection, index_name= index_name)
+
+    return text_out
 
 
 if __name__ == "__main__":
 
-    api_key = os.environ['GEMINI_API_KEY']
-    genai_client= genai.Client(api_key= api_key)
+    mongodb_uri= os.environ['MONGODB_PEM']
+    mc = MongoClient(mongodb_uri)
 
-    chroma_client = chromadb.PersistentClient('/home/cyto/dev/pem-rag-chatbot/chroma')
+    llm_client= ollama.Client()
 
-    initit(genai_client, chroma_client)
+    #### FOR USING JINA INSTEAD OF HUGGINGFACE SDK, REPLACE WITH THE InferenceClient TOP IMPORT
+    # from pembot.utils.inference_client import InferenceClient
+    # JINA_API_KEY= os.environ['JINA_API_KEY']
+    # inference_client= InferenceClient(
+    #     provider="Jina AI",
+    #     api_key= JINA_API_KEY,
+    # )
+
+    inference_client= InferenceClient(
+        provider="hf-inference",
+        api_key= os.environ["HF_TOKEN"],
+    )
+
+    mc.admin.command('ping')
+    print("ping test ok")
+    database = mc["pembot"]
+    print("dbs and cols loaded")
+
+    embeddings_collection: str= "doc_chunks"
+    index_name: str=  "test_search"
+
+    # if you want to use LLM inference from a different provider than embeddings
+    llm_provider_name: PROVIDER_T="novita"
+
+    # nerfed, but provided by hf serverless inference: BAAI/bge-small-en-v1.5
+    # Worth mentioning: 
+    # jinaai/jina-embeddings-v3
+    # BAAI/bge-base-en-v1.5
+    # nomic-ai/nomic-embed-text-v1.5
+    embedding_model: str= 'BAAI/bge-base-en-v1.5'
+    model_name: str= "deepseek-ai/DeepSeek-R1-0528-Qwen3-8B"
+
+    # output tokens are ~1000 at max
+    # chunk_size= 1000 # this is for chhote mote models, gemma 1b or smth
+    chunk_size= int(2_50_000 / len(required_fields)) # we got 63k tokens => ~2.5 lac characters
+
+    process_output_dir= initit(database, llm_client, inference_client, chunk_size= chunk_size, embedding_model= embedding_model, llm_provider_name= llm_provider_name, model_name= model_name, embeddings_collection= embeddings_collection, index_name= index_name)
+
+    docs_collection= database["summary_docs"]
+    upload_summaries(process_output_dir / 'json', docs_collection)
+
+
+

@@ -1,9 +1,13 @@
-from google import genai
-import numpy as np
+from pathlib import Path
+import uuid
 from pymongo import MongoClient
 import os
-from TextEmbedder import gemini_embedder
 import re
+import time
+import numpy as np
+
+from pembot.AnyToText.convertor import chunk_text
+from pembot.utils.string_tools import make_it_an_id
 
 
 
@@ -15,22 +19,185 @@ def clean_text(text):
     return cleaned_text
 
 
-#"""
-# Function to generate and store embeddings
-def mongodb_embed(genai_client, collection, content_field_name: str, embeddings_collection, chunk_wordlimit= 170):
-    for doc in collection.find():
-        print("updating doc id: ", doc['_id'])
-        text = doc[content_field_name]  # Assuming 'text' contains the paper's content
 
-        """
-        break into chunks of 170 words, put up a for loop for each chunk of docId
-        """
-        wordslist = clean_text(text).split()
+def search_within_document(
+    db_client,
+    aggregate_query_embedding,
+    document_name_id: str,
+    limit: int = 5,
+    index_name: str = "test_search",
+    embeddings_collection: str= "doc_chunks",
+):
+    """
+    Performs a vector similarity search within the chunks of a specific document
+    in the 'embeddings_collection' MongoDB collection.
 
-        for i in range(0, len(wordslist), chunk_wordlimit):
-            embedding = gemini_embedder.get_embedding(genai_client, " ".join(wordslist[i: i + chunk_wordlimit]))
-            embeddings_collection.update_one({'docId': doc['_id'], 'chunk_number': i / chunk_wordlimit}, {'$set': {'embedding': embedding}}, upsert = True)
-            print(f"done the chunk {i / chunk_wordlimit} for: {doc['_id']}", )
+    Args:
+        db_client: An initialized PyMongo Database instance.
+        aggregate_query_embedding: The np.mean of queries vectors of your search query.
+        document_name_id: This will be used to filter by the 'docId'.
+        limit: The maximum number of similar chunks to return.
+        index_name: The name of your MongoDB Atlas Vector Search index.
+                    You MUST have a vector search index created on the 'embedding' field
+                    of the 'embeddings_collection' collection for this to work efficiently.
+
+    Returns:
+        A list of dictionaries, where each dictionary represents a matching chunk
+        from the specified document, including its text, docId, and score.
+    """
+    embeddings_collection = db_client[embeddings_collection]
+    
+    print(f"Searching within document (docId: {document_name_id})...")
+
+    # MongoDB Atlas Vector Search aggregation pipeline
+    # The 'path' should point to the field containing the embeddings.
+    # The 'filter' stage is crucial for searching within a specific document.
+    pipeline = [
+        {
+            '$vectorSearch': {
+                'queryVector': aggregate_query_embedding,
+                'path': 'embedding',
+                
+                #number of nearest neighbors to consider
+                'numCandidates': 100,
+                'limit': limit,
+                'index': index_name,
+                
+                #filter to search only within the specified document
+                'filter': { 
+                    'docId': document_name_id
+                }
+            }
+        },
+
+        # to exclude the MongoDB internal _id
+        {
+            '$project': {
+                '_id': 0,
+                'docId': 1,
+                'chunk_number': 1,
+                'chunk_text': 1,
+                'score': { '$meta': 'vectorSearchScore' } # Get the similarity score
+            }
+        }
+    ]
+
+    results = list(embeddings_collection.aggregate(pipeline))
+
+    if not results:
+        print(f"No relevant chunks found for document '{document_name_id}' with the given query.")
+    else:
+        print(f"Found {len(results)} relevant chunks in document '{document_name_id}':")
+        for i, res in enumerate(results):
+            print(f"  Result {i+1} (Score: {res['score']:.4f}):")
+            print(f"    Chunk Number: {res['chunk_number']}")
+            print(f"    Text: '{res['chunk_text'][:100]}...'") # Print first 100 chars
+            print("-" * 30)
+    
+    return results
+
+
+
+def process_document_and_embed(db_client, llm_client, inference_client, file_path: Path, chunk_size: int, embedding_model: str = 'nomic-embed-text:v1.5', embeddings_collection_name= "doc_chunks"):
+    """
+    Processes an input document by chunking its text, generating embeddings using
+    Ollama's specified embedding model, and storing these embeddings and chunks
+    in a MongoDB collection.
+
+    Args:
+        db_client: An initialized PyMongo Database instance.
+        file_path: The original path of the document being processed.
+                   This path will be used to create a sanitized ID for the
+                   document.
+        chunk_size: The desired chunk size in words for text segmentation.
+        embedding_model: The name of the Ollama embedding model to use.
+    """
+    # Read the input text from the file
+    with open(str(file_path), "r") as md_file:
+        input_text = md_file.read()
+
+    # Create a valid ID for the document from the file name (without extension)
+    file_root = os.path.splitext(file_path.name)[0]
+    document_name_id = make_it_an_id(file_root)
+
+    # Reference the MongoDB collection where chunks will be stored
+    # This single collection will serve as the global 'embeddings_collection'
+    # and document-specific data can be queried using 'docId'.
+    embeddings_collection = db_client[embeddings_collection_name]
+
+    # Check if this document's embeddings already exist in MongoDB
+    # We check if any document with this docId exists in the 'embeddings_collection' collection.
+    if embeddings_collection.find_one({'docId': document_name_id}):
+        print(f"Document '{file_path.name}' (ID: {document_name_id}) already processed. Skipping.")
+        return
+
+    print(f"Processing document '{file_path.name}' (ID: {document_name_id})...")
+
+
+    models = llm_client.list()
+    embed_locally= False
+
+    for model in models.models:
+        if model.model == embedding_model:
+            embed_locally= True
+
+    # Chunk the input text into smaller segments
+    chunks = chunk_text(input_text, chunk_size)
+    print(f"Text chunked into {len(chunks)} segments.")
+
+    # Process each chunk: generate embedding and add to MongoDB
+    for i, chunk in enumerate(chunks):
+        try:
+            print(f"Processing chunk {i+1}/{len(chunks)} for document '{file_path.name}'...")
+            # Generate embedding using the specified Ollama model
+
+            if embed_locally:
+                response = llm_client.embeddings(model=embedding_model, prompt=chunk)
+                embedding= response['embedding']
+            else:
+                embedding = inference_client.feature_extraction(chunk, model=embedding_model)
+
+                # API rate limiting safety
+                time.sleep(1)
+                print("zzzzzzzzz")
+
+            if isinstance(embedding, np.ndarray):
+                embedding = embedding.tolist()
+            elif not isinstance(embedding, list):
+                raise TypeError("Embedding is not a list or numpy array. Cannot store in MongoDB.")
+
+
+            # Generate a random suffix for unique chunk IDs
+            random_suffix = uuid.uuid4().hex[:8]
+
+            # Create the unique ID for the chunk for the global 'embeddings_collection' collection
+            # This ID can be stored in the document if needed for external reference
+            chunk_id_global = f"{document_name_id}_chunk_{i + 1}_{random_suffix}"
+            # Create the unique ID for the chunk (local to the document's chunking)
+            chunk_id_doc_specific = f"chunk_{i}_{random_suffix}"
+
+            # Store the chunk data in MongoDB using update_one with upsert=True
+            # This will insert a new document if 'docId' and 'chunk_number' don't match,
+            # or update an existing one if they do.
+            embeddings_collection.update_one(
+                {'docId': document_name_id, 'chunk_number': i + 1},
+                {'$set': {
+                    'chunk_text': chunk,
+                    'embedding': embedding,
+                    'chunk_id_global': chunk_id_global,
+                    'chunk_id_doc_specific': chunk_id_doc_specific
+                }},
+                upsert=True
+            )
+            print(f"Successfully stored chunk {i+1} for '{file_path.name}' in MongoDB.")
+
+        except Exception as e:
+            print(f"Error processing chunk {i+1} for '{file_path.name}': {e}")
+            # Continue to the next chunk even if one fails
+            continue
+
+    print(f"Finished processing document '{file_root}'. All chunks embedded and stored in MongoDB.")
+
 
 
 
@@ -41,7 +208,3 @@ if __name__ == "__main__":
     embeddings_collection = db["blog_embeddings"]
 
     api_key = os.environ['GEMINI_API_KEY']
-    genai_client= genai.Client(api_key= api_key)
-
-    mongodb_embed(genai_client, collection, 'content', embeddings_collection)
-#"""

@@ -41,7 +41,7 @@ class Convertor():
             print("the file was json")
         elif mt == 'application/pdf':
             print("the file was pdf, outputting in: ", output_dir)
-            extractor= MarkdownPDFExtractor(str(myfile), output_path= str(self.output_dir), page_delimiter= "___________________________ NEXT PAGE ___________________________")
+            extractor= MarkdownPDFExtractor(str(myfile), output_path= str(self.output_dir), page_delimiter= "-- NEXT PAGE --")
             extractor.extract()
 
         elif mt in EXCEL_FILE_TYPES:
