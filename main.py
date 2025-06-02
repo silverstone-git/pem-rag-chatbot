@@ -99,12 +99,11 @@ def make_document_summarization_and_embeddings(db_client, llm_client, inference_
             print("full query is: ")
             print(query)
             filename_string= file_root + '.json'
-            required_fields_descriptions= list(map(lambda x: x[2], required_fields))
+            required_fields_descriptions= list(map(lambda x: x[1], required_fields))
             llm_output= rag_query_llm(db_client, llm_client, inference_client, query, document_id, required_fields_descriptions, no_of_fields= len(required_fields), llm_provider_name= llm_provider_name, model_name= model_name, embedding_model= embedding_model, embeddings_collection= embeddings_collection, index_name= index_name)
 
             # llm_output= rag_query_llm(query, no_of_fields= len(required_fields))
             jsonstr= remove_bs(llm_output)
-            print(jsonstr)
 
             save_to_json_file(jsonstr, text_out_dir / 'json' / filename_string)
 
@@ -128,9 +127,9 @@ def upload_summaries(json_dir: Path, docs_collection):
             )
 
             if result.upserted_id:
-                print(f"Document inserted with _id: {result.upserted_id}")
+                print(f"New Document inserted with _id: {result.upserted_id}")
             else:
-                print("Document with this docId already existed. No new document inserted.")
+                print("Document with this docId found. Updated.")
 
 
 
@@ -174,22 +173,31 @@ if __name__ == "__main__":
     print("dbs and cols loaded")
 
     embeddings_collection: str= "doc_chunks"
-    index_name: str=  "test_search"
 
     # if you want to use LLM inference from a different provider than embeddings
-    llm_provider_name: PROVIDER_T="novita"
+    llm_provider_name: PROVIDER_T="nebius"
 
     # nerfed, but provided by hf serverless inference: BAAI/bge-small-en-v1.5
     # Worth mentioning: 
     # jinaai/jina-embeddings-v3
     # BAAI/bge-base-en-v1.5
     # nomic-ai/nomic-embed-text-v1.5
-    embedding_model: str= 'BAAI/bge-base-en-v1.5'
-    model_name: str= "deepseek-ai/DeepSeek-R1-0528-Qwen3-8B"
+    # embedding_model: str= 'BAAI/bge-base-en-v1.5'
+    embedding_model: str= 'gemini-embedding-exp-03-07'
+    # model_name: str= "deepseek-ai/DeepSeek-R1-0528-Qwen3-8B"
+    # model_name: str= "google/gemma-3-27b-it"
+    model_name: str= "gemini-2.5-flash-preview-05-20"
+
+    index_name: str=  "gemini_vectors"
 
     # output tokens are ~1000 at max
     # chunk_size= 1000 # this is for chhote mote models, gemma 1b or smth
     chunk_size= int(2_50_000 / len(required_fields)) # we got 63k tokens => ~2.5 lac characters
+
+
+    #### REQUIRED_FIELDS:
+    # an array of tuples:
+    # (field name, field description, field type, default value)
 
     process_output_dir= initit(database, llm_client, inference_client, chunk_size= chunk_size, embedding_model= embedding_model, llm_provider_name= llm_provider_name, model_name= model_name, embeddings_collection= embeddings_collection, index_name= index_name)
 

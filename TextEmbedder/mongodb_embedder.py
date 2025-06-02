@@ -1,5 +1,7 @@
 from pathlib import Path
 import uuid
+from google import genai
+from google.genai import types
 from pymongo import MongoClient
 import os
 import re
@@ -150,10 +152,29 @@ def process_document_and_embed(db_client, llm_client, inference_client, file_pat
         try:
             print(f"Processing chunk {i+1}/{len(chunks)} for document '{file_path.name}'...")
             # Generate embedding using the specified Ollama model
+            print("embedding_model is: ", embedding_model)
+            print("if statement is", 'gemini' in embedding_model)
 
-            if embed_locally:
+            if 'gemini' in embedding_model:
+
+                client = genai.Client(api_key= os.environ['GEMINI_API_KEY'])
+                result = client.models.embed_content(
+                        model= embedding_model,
+                        contents= chunk,
+                        config=types.EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT")
+                )
+                if result is not None and result.embeddings:
+                    embedding= result.embeddings[0].values
+                else:
+                    raise ValueError("Gemini not givingz embeddingzzz")
+
+                # API safety
+                time.sleep(1)
+
+            elif embed_locally:
                 response = llm_client.embeddings(model=embedding_model, prompt=chunk)
                 embedding= response['embedding']
+
             else:
                 embedding = inference_client.feature_extraction(chunk, model=embedding_model)
 

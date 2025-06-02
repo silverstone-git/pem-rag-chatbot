@@ -3,9 +3,14 @@ from huggingface_hub.inference._generated.types.chat_completion import ChatCompl
 from huggingface_hub.inference._providers import PROVIDER_T
 import ollama
 import re
+
+from pydantic_core.core_schema import ErrorType
 from pembot.TextEmbedder.mongodb_embedder import search_within_document
 import numpy as np
 from huggingface_hub import InferenceClient
+from google import genai
+from google.genai import types
+import time
 
 from pembot.TextEmbedder.mongodb_index_creator import create_vector_index
 
@@ -41,16 +46,30 @@ def multi_embedding_average(llm_client, inference_client, descriptions, model= "
     description_embeddings = []
     for desc in descriptions:
         try:
-            if not embed_locally:
-                response = inference_client.feature_extraction(desc, model=model)
-                description_embeddings.append(response)
-            else:
+            if 'gemini' in model:
+                client = genai.Client(api_key= environ['GEMINI_API_KEY'])
+                result = client.models.embed_content(
+                        model= model,
+                        contents= desc,
+                        config=types.EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT")
+                )
+                if result is not None and result.embeddings:
+                    description_embeddings.append(result.embeddings[0].values)
+                else:
+                    raise ValueError("Gemini not givingz embeddingzzz")
+            elif embed_locally:
                 response = llm_client.embeddings(model=model, prompt=desc)
                 description_embeddings.append(response['embedding'])
+
+            else:
+                response = inference_client.feature_extraction(desc, model=model)
+                description_embeddings.append(response)
+
         except Exception as e:
             print(f"Error generating embedding for description '{desc}': {e}")
             # Decide how to handle errors: skip, raise, or use a placeholder
             continue
+        time.sleep(1)
 
     if not description_embeddings:
         print("No embeddings could be generated for the descriptions. Aborting search.")
@@ -121,7 +140,16 @@ def rag_query_llm(db_client, llm_client, inference_client, user_query: str, docu
     # print("Step 3: Calling Ollama model with RAG prompt...")
     # print("final prompt: ")
     # print(rag_prompt)
-    if found:
+    if 'gemini' in model_name:
+
+        client = genai.Client(api_key= environ['GEMINI_API_KEY'])
+        response = client.models.generate_content(
+            model= model_name,
+            contents= rag_prompt,
+        )
+        return response.text
+
+    elif found:
         try:
             # You can use ollama.chat or ollama.generate depending on your model and preference
             # ollama.chat is generally preferred for conversational models.
