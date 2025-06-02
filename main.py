@@ -115,26 +115,22 @@ def upload_summaries(json_dir: Path, docs_collection):
 
         base_name, _ = os.path.splitext(json_path.name)
         corresponding_text_file= json_dir.parent / (base_name + ".md")
+        document_name_id= make_it_an_id(base_name)
 
         with open(str(json_path)) as json_file:
             json_data= json.load(json_file)
-            with open(str(corresponding_text_file)) as text_file:
-                # docs_collection.insert_one({**json_data, "content": text_file.read()})
 
-                print("pushing doc: ", corresponding_text_file, json_path)
-                content_to_insert = text_file.read()
+            print("pushing doc: ", corresponding_text_file, json_path)
+            result = docs_collection.update_one(
+                {"document_name_id": document_name_id}, # Filter by the content field
+                {"$setOnInsert": {**json_data, "document_name_id": document_name_id}}, # Set these fields ONLY on insert
+                upsert=True # Insert if no matching document is found
+            )
 
-                result = docs_collection.update_one(
-                    {"content": content_to_insert}, # Filter by the content field
-                    {"$setOnInsert": {**json_data, "content": content_to_insert}}, # Set these fields ONLY on insert
-                    upsert=True # Insert if no matching document is found
-                )
-
-                if result.upserted_id:
-                    print(f"Document inserted with _id: {result.upserted_id}")
-                else:
-                    print("Document with this content already existed. No new document inserted.")
-                    # You might need to find the existing document's ID if needed here
+            if result.upserted_id:
+                print(f"Document inserted with _id: {result.upserted_id}")
+            else:
+                print("Document with this docId already existed. No new document inserted.")
 
 
 
@@ -147,7 +143,7 @@ def initit(db_client, llm_client, inference_client, chunk_size= 500, embedding_m
     docs.mkdir(parents= True, exist_ok= True)
     text_out.mkdir(parents= True, exist_ok= True)
 
-    #make_document_summarization_and_embeddings(db_client, llm_client, inference_client, docs, text_out, required_fields, chunk_size= chunk_size, embedding_model= embedding_model, llm_provider_name= llm_provider_name, model_name= model_name, embeddings_collection= embeddings_collection, index_name= index_name)
+    make_document_summarization_and_embeddings(db_client, llm_client, inference_client, docs, text_out, required_fields, chunk_size= chunk_size, embedding_model= embedding_model, llm_provider_name= llm_provider_name, model_name= model_name, embeddings_collection= embeddings_collection, index_name= index_name)
 
     return text_out
 
