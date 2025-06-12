@@ -16,7 +16,7 @@ from pembot.TextEmbedder.mongodb_index_creator import create_vector_index
 
 def external_llm(rag_prompt, model_name, llm_provider_name: PROVIDER_T= "novita", inference_client = None) -> str:
 
-    # Here, one can change the provider of the inference LLM if 
+    # Here, one can change the provider of the inference LLM if
     # for embedding we are using one which doesnt have our LLM available
     # or, is costly, so we choose different, just here in the function header, or from the main()
 
@@ -34,7 +34,7 @@ def external_llm(rag_prompt, model_name, llm_provider_name: PROVIDER_T= "novita"
             ]
         )
     response_message: ChatCompletionOutputMessage= completion.choices[0].message
-    
+
     if response_message.content:
         return response_message.content
     else:
@@ -116,7 +116,7 @@ def rag_query_llm(db_client, llm_client, inference_client, user_query: str, docu
     create_vector_index(db_client[embeddings_collection], index_name, num_dimensions= len(aggregate_query_embedding))
 
     # check the order of args
-    relevant_chunks= search_within_document(db_client, aggregate_query_embedding, document_id, limit= no_of_fields, index_name= index_name, embeddings_collection= embeddings_collection)
+    relevant_chunks= search_within_document(db_client, aggregate_query_embedding, document_id, limit= no_of_fields, index_name= index_name, embeddings_collection_name= embeddings_collection)
     relevant_chunks= list(map(lambda x: x['chunk_text'], relevant_chunks))
 
     if not relevant_chunks:
@@ -136,7 +136,7 @@ def rag_query_llm(db_client, llm_client, inference_client, user_query: str, docu
 
     Question: {user_query}
     """
-    
+
     # print("Step 3: Calling Ollama model with RAG prompt...")
     # print("final prompt: ")
     # print(rag_prompt)

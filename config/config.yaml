@@ -1,4 +1,4 @@
-OUTPUT_DIR: /home/cyto/dev/localpem
+OUTPUT_DIR: /home/cyto/dev/pembotdir
 PAGE_DELIMITER: ___________________________ NEXT PAGE ___________________________
 app:
   name: pembot

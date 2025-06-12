@@ -28,7 +28,7 @@ def search_within_document(
     document_name_id: str,
     limit: int = 5,
     index_name: str = "test_search",
-    embeddings_collection: str= "doc_chunks",
+    embeddings_collection_name: str= "doc_chunks",
 ):
     """
     Performs a vector similarity search within the chunks of a specific document
@@ -47,8 +47,8 @@ def search_within_document(
         A list of dictionaries, where each dictionary represents a matching chunk
         from the specified document, including its text, docId, and score.
     """
-    embeddings_collection = db_client[embeddings_collection]
-    
+    embeddings_collection = db_client[embeddings_collection_name]
+
     print(f"Searching within document (docId: {document_name_id})...")
 
     # MongoDB Atlas Vector Search aggregation pipeline
@@ -59,14 +59,14 @@ def search_within_document(
             '$vectorSearch': {
                 'queryVector': aggregate_query_embedding,
                 'path': 'embedding',
-                
+
                 #number of nearest neighbors to consider
                 'numCandidates': 100,
                 'limit': limit,
                 'index': index_name,
-                
+
                 #filter to search only within the specified document
-                'filter': { 
+                'filter': {
                     'docId': document_name_id
                 }
             }
@@ -95,12 +95,21 @@ def search_within_document(
             print(f"    Chunk Number: {res['chunk_number']}")
             print(f"    Text: '{res['chunk_text'][:100]}...'") # Print first 100 chars
             print("-" * 30)
-    
+
     return results
 
 
 
-def process_document_and_embed(db_client, llm_client, inference_client, file_path: Path, chunk_size: int, embedding_model: str = 'nomic-embed-text:v1.5', embeddings_collection_name= "doc_chunks"):
+def process_document_and_embed(db_client,
+    llm_client,
+    inference_client,
+    file_path: Path,
+    chunk_size: int,
+    embedding_model: str = 'nomic-embed-text:v1.5',
+    embeddings_collection_name= "doc_chunks",
+    use_custom_id: str | None = None,
+    use_custom_input: str | None = None
+) -> list[dict]:
     """
     Processes an input document by chunking its text, generating embeddings using
     Ollama's specified embedding model, and storing these embeddings and chunks
@@ -114,13 +123,23 @@ def process_document_and_embed(db_client, llm_client, inference_client, file_pat
         chunk_size: The desired chunk size in words for text segmentation.
         embedding_model: The name of the Ollama embedding model to use.
     """
-    # Read the input text from the file
-    with open(str(file_path), "r") as md_file:
-        input_text = md_file.read()
 
-    # Create a valid ID for the document from the file name (without extension)
-    file_root = os.path.splitext(file_path.name)[0]
-    document_name_id = make_it_an_id(file_root)
+    input_text= None
+    if use_custom_input is not None:
+        input_text= use_custom_input
+    else:
+        # Read the input text from the file
+        with open(str(file_path), "r") as md_file:
+            input_text = md_file.read()
+
+
+    document_name_id= None
+    if use_custom_id is not None:
+        document_name_id= use_custom_id
+    else:
+        # Create a valid ID for the document from the file name (without extension)
+        file_root = os.path.splitext(file_path.name)[0]
+        document_name_id = make_it_an_id(file_root)
 
     # Reference the MongoDB collection where chunks will be stored
     # This single collection will serve as the global 'embeddings_collection'
@@ -129,9 +148,10 @@ def process_document_and_embed(db_client, llm_client, inference_client, file_pat
 
     # Check if this document's embeddings already exist in MongoDB
     # We check if any document with this docId exists in the 'embeddings_collection' collection.
-    if embeddings_collection.find_one({'docId': document_name_id}):
+    an_existing_chunk= embeddings_collection.find_one({'docId': document_name_id})
+    if an_existing_chunk:
         print(f"Document '{file_path.name}' (ID: {document_name_id}) already processed. Skipping.")
-        return
+        return [an_existing_chunk]
 
     print(f"Processing document '{file_path.name}' (ID: {document_name_id})...")
 
@@ -148,6 +168,7 @@ def process_document_and_embed(db_client, llm_client, inference_client, file_pat
     print(f"Text chunked into {len(chunks)} segments.")
 
     # Process each chunk: generate embedding and add to MongoDB
+    res = []
     for i, chunk in enumerate(chunks):
         try:
             print(f"Processing chunk {i+1}/{len(chunks)} for document '{file_path.name}'...")
@@ -200,24 +221,27 @@ def process_document_and_embed(db_client, llm_client, inference_client, file_pat
             # Store the chunk data in MongoDB using update_one with upsert=True
             # This will insert a new document if 'docId' and 'chunk_number' don't match,
             # or update an existing one if they do.
+            doc_set = {
+                'chunk_text': chunk,
+                'embedding': embedding,
+                'chunk_id_global': chunk_id_global,
+                'chunk_id_doc_specific': chunk_id_doc_specific
+            }
             embeddings_collection.update_one(
                 {'docId': document_name_id, 'chunk_number': i + 1},
-                {'$set': {
-                    'chunk_text': chunk,
-                    'embedding': embedding,
-                    'chunk_id_global': chunk_id_global,
-                    'chunk_id_doc_specific': chunk_id_doc_specific
-                }},
+                {'$set': doc_set},
                 upsert=True
             )
             print(f"Successfully stored chunk {i+1} for '{file_path.name}' in MongoDB.")
+            res.append({**doc_set, "docId": document_name_id, "chunk_number": i + 1})
 
         except Exception as e:
             print(f"Error processing chunk {i+1} for '{file_path.name}': {e}")
             # Continue to the next chunk even if one fails
             continue
 
-    print(f"Finished processing document '{file_root}'. All chunks embedded and stored in MongoDB.")
+    print(f"Finished processing document '{file_path.name}'. All chunks embedded and stored in MongoDB.")
+    return res
 
 
 

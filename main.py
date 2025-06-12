@@ -149,7 +149,7 @@ def initit(db_client, llm_client, inference_client, chunk_size= 500, embedding_m
 
 if __name__ == "__main__":
 
-    mongodb_uri= os.environ['MONGODB_PEM']
+    mongodb_uri= os.environ['MONGODB_PEMBOT']
     mc = MongoClient(mongodb_uri)
 
     llm_client= ollama.Client()
