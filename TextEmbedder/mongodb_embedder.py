@@ -155,13 +155,16 @@ def process_document_and_embed(db_client,
 
     print(f"Processing document '{file_path.name}' (ID: {document_name_id})...")
 
-
-    models = llm_client.list()
     embed_locally= False
+    try:
+        models = llm_client.list()
 
-    for model in models.models:
-        if model.model == embedding_model:
-            embed_locally= True
+        for model in models.models:
+            if model.model == embedding_model:
+                embed_locally= True
+    except Exception as e:
+        print("local model list error: ", e)
+
 
     # Chunk the input text into smaller segments
     chunks = chunk_text(input_text, chunk_size)

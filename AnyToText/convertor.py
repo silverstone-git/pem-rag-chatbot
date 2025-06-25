@@ -1,3 +1,4 @@
+from tempfile import TemporaryDirectory
 import mimetypes
 from pathlib import Path
 from pembot.pdf2markdown.extract import MarkdownPDFExtractor
@@ -5,6 +6,7 @@ import os
 import json
 import pandas as pd
 from typing import Literal, Union, Dict, Any, List
+import tempfile
 
 
 PandasReadEngineType = Literal['xlrd', 'openpyxl', 'odf', 'pyxlsb', 'calamine', None]
@@ -24,34 +26,57 @@ EXCEL_FILE_TYPES= [
         'application/vnd.oasis.opendocument.spreadsheet',
 ]
 
+
 class Convertor():
 
 
-    def __init__(self, myfile: Path, output_dir: Path):
+    def __init__(self, myfile: Path | None, output_dir: Path | None, file_bytes: bytes | None, suffix: str | None, file_type: str | None):
 
-        print("got output path for conversion: ", output_dir)
-        mt= mimetypes.guess_file_type(str(myfile))[0]
+        self.output= ""
 
-        self.output_dir= output_dir
-        self.input_filepath= myfile
-        base_name, _ = os.path.splitext(myfile.name)
-        self.json_filepath = output_dir / 'json' / (base_name + ".json")
+        # file_type can be pdf, excel, etc.
+        if output_dir is None and file_bytes is not None and suffix is not None and myfile is None:
+            with tempfile.TemporaryDirectory() as dp:
+                with tempfile.NamedTemporaryFile(suffix= suffix, mode= 'wb') as fp:
+                    fp.write(file_bytes)
+                    myfile= Path(fp.name)
+                    output_dir= Path(dp)
+                    if file_type == 'pdf':
+                        extractor= MarkdownPDFExtractor(str(myfile), output_path= str(self.output_dir), page_delimiter= "-- NEXT PAGE --")
+                        extractor.extract()
+                        with open(output_dir / (myfile.stem + '.md')) as output_file:
+                            self.output= output_file.read()
+                    elif file_type == 'excel':
+                        self.input_filepath= myfile
+                        self.json_filepath = output_dir / (myfile.stem + ".json")
+                        self.convert_file_to_json()
+                        with open(output_dir / (myfile.stem + '.json')) as output_file:
+                            self.output= output_file.read()
 
-        if mt == 'application/json':
-            print("the file was json")
-        elif mt == 'application/pdf':
-            print("the file was pdf, outputting in: ", output_dir)
-            extractor= MarkdownPDFExtractor(str(myfile), output_path= str(self.output_dir), page_delimiter= "-- NEXT PAGE --")
-            extractor.extract()
+        elif output_dir is not None and myfile is not None:
+            print("got output path for conversion: ", output_dir)
+            mt= mimetypes.guess_file_type(str(myfile))[0]
 
-        elif mt in EXCEL_FILE_TYPES:
-            self.convert_file_to_json()
-            
-        else:
-            print(mt)
+            self.output_dir= output_dir
+            self.input_filepath= myfile
+            base_name, _ = os.path.splitext(myfile.name)
+            self.json_filepath = output_dir / 'json' / (base_name + ".json")
+
+            if mt == 'application/json':
+                print("the file was json")
+            elif mt == 'application/pdf':
+                print("the file was pdf, outputting in: ", output_dir)
+                extractor= MarkdownPDFExtractor(str(myfile), output_path= str(self.output_dir), page_delimiter= "-- NEXT PAGE --")
+                extractor.extract()
+
+            elif mt in EXCEL_FILE_TYPES:
+                self.convert_file_to_json()
+
+            else:
+                print(mt)
 
 
-    
+
     def convert_file_to_json(
             self,
             sheet_to_convert: Union[str, int, None] = None,  # Relevant for Excel/ODS
@@ -233,4 +258,3 @@ def chunk_text(text, chunk_size=500, overlap_size=50):
 
 if __name__ == '__main__':
     print("do you want a rice bag?")
-
