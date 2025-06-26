@@ -97,16 +97,22 @@ def rag_query_llm(db_client, llm_client, inference_client, user_query: str, docu
         str: The generated response from the Ollama model.
     """
 
-    models = llm_client.list()
-    found= False
     embed_locally= False
-
-    for model in models.models:
-        # print(model.model)
-        if model.model == model_name:
-            found= True
-        if model.model == embedding_model:
-            embed_locally= True
+    found= False
+    try:
+        models = llm_client.list()
+        for model in models.models:
+            # print(model.model)
+            if model.model == model_name:
+                found= True
+            if model.model == embedding_model:
+                embed_locally= True
+    except AttributeError as ae:
+        print("cant find ollama", ae)
+        print("continuing with other models")
+    except Exception as e:
+        print("unhandled error: ", e)
+        raise e
 
 
 
