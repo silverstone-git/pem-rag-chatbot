@@ -10,7 +10,11 @@ from pembot.query import rag_query_llm, remove_bs
 import os
 import json
 from pembot.utils.string_tools import make_it_an_id
-from schema.structure import required_fields
+import pickle
+from sys import argv
+
+required_fields_path= ""
+required_fields= None
 
 
 def make_query(required_fields: list[tuple[str, str, str, str]]):
@@ -67,8 +71,8 @@ def save_to_json_file(llm_output: str, filepath: Path):
     except Exception as e:
         print(f"An unexpected error occurred in save_to_json_file: {e}")
 
-def make_document_summarization_and_embeddings(db_client, llm_client, inference_client, docs_dir: Path, text_out_dir: Path, required_fields: list[tuple[str, str, str, str]], chunk_size: int = 600, embedding_model: str= 'nomic-embed-text:v1.5', llm_provider_name: PROVIDER_T= "novita", model_name= "deepseek-ai/DeepSeek-R1-0528-Qwen3-8B", embeddings_collection: str= "doc_chunks", index_name= "test_search"): 
-    # give required output fields 
+def make_document_summarization_and_embeddings(db_client, llm_client, inference_client, docs_dir: Path, text_out_dir: Path, required_fields: list[tuple[str, str, str, str]], chunk_size: int = 600, embedding_model: str= 'nomic-embed-text:v1.5', llm_provider_name: PROVIDER_T= "novita", model_name= "deepseek-ai/DeepSeek-R1-0528-Qwen3-8B", embeddings_collection: str= "doc_chunks", index_name= "test_search"):
+    # give required output fields
     # take the documents
     # convert to text
     # upload to chromadb
@@ -80,7 +84,7 @@ def make_document_summarization_and_embeddings(db_client, llm_client, inference_
         expected_json= text_out_dir / 'json' / (file_root + '.json')
         document_id= make_it_an_id(file_root)
 
-        if docfile.is_file and not (expected_json).exists(): 
+        if docfile.is_file and not (expected_json).exists():
 
             expected_markdown= text_out_dir / (file_root + '.md')
             if not (expected_markdown).exists():
@@ -161,6 +165,23 @@ if __name__ == "__main__":
     #     provider="Jina AI",
     #     api_key= JINA_API_KEY,
     # )
+    #
+
+    try:
+        if len(argv) > 1:
+            print(f"First argument: {argv[1]}")
+            required_fields_path= argv[1]
+            with open(required_fields_path, "rb") as rf:
+                required_fields= pickle.load(rf)
+    except Exception as e:
+        print("error while getting required_fields pickle. Please pickle it and put it in project directory to continue\n", e)
+
+    if required_fields is None:
+        print("couldnt load required fields. please provide path to pickle in command line argument")
+        exit()
+    else:
+        print(required_fields)
+
 
     inference_client= InferenceClient(
         provider="hf-inference",
@@ -178,7 +199,7 @@ if __name__ == "__main__":
     llm_provider_name: PROVIDER_T="nebius"
 
     # nerfed, but provided by hf serverless inference: BAAI/bge-small-en-v1.5
-    # Worth mentioning: 
+    # Worth mentioning:
     # jinaai/jina-embeddings-v3
     # BAAI/bge-base-en-v1.5
     # nomic-ai/nomic-embed-text-v1.5
@@ -203,6 +224,3 @@ if __name__ == "__main__":
 
     docs_collection= database["summary_docs"]
     upload_summaries(process_output_dir / 'json', docs_collection)
-
-
-
