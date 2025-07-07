@@ -35,6 +35,8 @@ class Convertor():
 
         self.output= ""
 
+        # model_name=  "gemini-2.5-flash"
+        model_name= None
         # file_type can be pdf, excel, etc.
         if output_dir is None and myfile is None and file_bytes is not None and suffix is not None:
             with tempfile.TemporaryDirectory() as dp:
@@ -43,7 +45,7 @@ class Convertor():
                     myfile= Path(fp.name)
                     output_dir= Path(dp)
                     if file_type == 'pdf':
-                        extractor= MarkdownPDFExtractor(str(myfile), output_path= str(output_dir), page_delimiter= "-- NEXT PAGE --")
+                        extractor= MarkdownPDFExtractor(str(myfile), output_path= str(output_dir), page_delimiter= "-- NEXT PAGE --", model_name= model_name)
                         extractor.extract()
                         with open(output_dir / (myfile.stem + '.md')) as output_file:
                             self.output= output_file.read()
@@ -67,7 +69,7 @@ class Convertor():
                 print("the file was json")
             elif mt == 'application/pdf':
                 print("the file was pdf, outputting in: ", output_dir)
-                extractor= MarkdownPDFExtractor(str(myfile), output_path= str(self.output_dir), page_delimiter= "-- NEXT PAGE --")
+                extractor= MarkdownPDFExtractor(str(myfile), output_path= str(self.output_dir), page_delimiter= "-- NEXT PAGE --", model_name= model_name)
                 extractor.extract()
 
             elif mt in EXCEL_FILE_TYPES:
@@ -333,10 +335,10 @@ def chunk_text(text, chunk_size=500, overlap_size=50):
 if __name__ == '__main__':
     print("Test Run Start:")
     try:
-        # print("Test 1: scaned pdf page, bytes")
-        # with open("/home/cyto/Documents/scanned.pdf", "rb") as imgpdf:
-        #     conv= Convertor(file_bytes= imgpdf.read(), suffix= ".pdf", file_type= "pdf")
-        #     print(conv.output)
+        print("Test 1: scaned pdf page, bytes")
+        with open("/home/cyto/Documents/scanned.pdf", "rb") as imgpdf:
+            conv= Convertor(file_bytes= imgpdf.read(), suffix= ".pdf", file_type= "pdf")
+            print(conv.output)
 
         # print("Test 2: JD pdf, bytes")
         # with open("/home/cyto/dev/pembotdir/jds/PM Trainee.pdf", "rb") as imgpdf:
