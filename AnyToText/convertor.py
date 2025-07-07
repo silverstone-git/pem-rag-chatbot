@@ -31,12 +31,14 @@ EXCEL_FILE_TYPES= [
 class Convertor():
 
 
-    def __init__(self, myfile: Path | None= None, output_dir: Path | None= None, file_bytes: bytes | None= None, suffix: str | None= None, file_type: str | None= None):
+    def __init__(self, myfile: Path | None= None, output_dir: Path | None= None, file_bytes: bytes | None= None, suffix: str | None= None, file_type: str | None= None, model_name: str | None = None):
 
         self.output= ""
 
-        # model_name=  "gemini-2.5-flash"
-        model_name= None
+        if model_name is None:
+            # model_name=  "gemini-2.5-flash"
+            model_name=  "Nanonets-OCR-s"
+
         # file_type can be pdf, excel, etc.
         if output_dir is None and myfile is None and file_bytes is not None and suffix is not None:
             with tempfile.TemporaryDirectory() as dp:
