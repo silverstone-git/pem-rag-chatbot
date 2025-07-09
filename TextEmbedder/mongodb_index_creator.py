@@ -4,7 +4,7 @@ from pymongo.operations import SearchIndexModel
 import time
 import os
 
-def create_vector_index(collection: Collection, index_name: str, num_dimensions: int = 768):
+def create_vector_index(collection: Collection, index_name: str, num_dimensions: int = 768, document_belongs_to_a_type= ""):
     """
     Creates a MongoDB Atlas Vector Search index if it does not already exist.
 
@@ -13,14 +13,14 @@ def create_vector_index(collection: Collection, index_name: str, num_dimensions:
         index_name: The desired name for the vector search index.
         num_dimensions: The number of dimensions for the embedding vectors.
     """
-    
+
     # 1. Check if the index already exists
     existing_indexes = list(collection.list_search_indexes())
-    
+
     for index in existing_indexes:
         if index.get('name') == index_name:
             print(f"Search index '{index_name}' already exists. Skipping creation.")
-            
+
             # Optional: You can also check if the existing index is "READY"
             if index.get('status') == 'READY':
                 print(f"Index '{index_name}' is already ready for querying.")
@@ -33,20 +33,27 @@ def create_vector_index(collection: Collection, index_name: str, num_dimensions:
     # 2. If the index does not exist, proceed to create it
     print(f"Search index '{index_name}' does not exist. Creating it now...")
 
+    fields_arr= [
+        {
+            "type": "vector",
+            "path": "embedding",
+            "similarity": "dotProduct", # Or "cosine", "euclidean"
+            "numDimensions": num_dimensions,
+            "quantization": "scalar" # Or "none"
+        },
+        {
+            "type": "filter",
+            "path": "docId"
+        }
+    ]
+
+    if document_belongs_to_a_type:
+        fields_arr.append({
+            "type": "filter",
+            "path": "type"
+        })
     search_index_model = SearchIndexModel(definition={
-            "fields": [
-                {
-                    "type": "vector",
-                    "path": "embedding",
-                    "similarity": "dotProduct", # Or "cosine", "euclidean"
-                    "numDimensions": num_dimensions,
-                    "quantization": "scalar" # Or "none"
-                },
-                {
-                    "type": "filter",
-                    "path": "docId"
-                }
-            ]
+            "fields": fields_arr
         },
         name=index_name,
         type="vectorSearch"
@@ -70,7 +77,7 @@ def _wait_for_index_ready(collection: Collection, index_name: str):
     Helper function to poll the index status until it's ready.
     """
     print("Polling to check if the index is ready. This may take some time (up to a few minutes for large indexes).")
-    
+
     start_time = time.time()
     timeout = 300 # 5 minutes timeout, adjust as needed
 
@@ -89,7 +96,7 @@ def _wait_for_index_ready(collection: Collection, index_name: str):
                 print(f"Index '{index_name}' status: {current_status}. Waiting...")
         except Exception as e:
             print(f"Error while polling index status: {e}. Retrying...")
-        
+
         if time.time() - start_time > timeout:
             status= indices[0].get('status') if indices else 'N/A'
             print(f"Timeout: Index '{index_name}' did not become ready within {timeout} seconds. Current status: {status}")
@@ -99,9 +106,9 @@ def _wait_for_index_ready(collection: Collection, index_name: str):
 
 # --- Example Usage ---
 if __name__ == "__main__":
-    
+
     # Replace with your database and collection names
-    DATABASE_NAME = "pembot" 
+    DATABASE_NAME = "pembot"
     COLLECTION_NAME = "doc_chunks"
     VECTOR_INDEX_NAME = "test_search"
 
@@ -119,7 +126,7 @@ if __name__ == "__main__":
 
         # Call the function to create the index, with existence check
         create_vector_index(collection, VECTOR_INDEX_NAME, num_dimensions=EMBEDDING_DIMENSIONS)
-        
+
         # Test calling it again to see the "already exists" message
         create_vector_index(collection, VECTOR_INDEX_NAME, num_dimensions=EMBEDDING_DIMENSIONS)
 
@@ -129,5 +136,3 @@ if __name__ == "__main__":
         if 'mongo_client' in locals() and mongo_client:
             mongo_client.close()
             print("MongoDB connection closed.")
-
-

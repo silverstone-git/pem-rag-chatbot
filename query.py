@@ -68,7 +68,8 @@ def multi_embedding_average(llm_client, inference_client, descriptions, model= "
         except Exception as e:
             print(f"Error generating embedding for description '{desc}': {e}")
             # Decide how to handle errors: skip, raise, or use a placeholder
-            continue
+            # continue
+            raise e
         time.sleep(1)
 
     if not description_embeddings:
@@ -81,7 +82,7 @@ def multi_embedding_average(llm_client, inference_client, descriptions, model= "
 
 
 
-def rag_query_llm(db_client, llm_client, inference_client, user_query: str, document_id: str, required_fields_descriptions: list[str], model_name: str = "deepseek-ai/DeepSeek-R1-0528-Qwen3-8B", ollama_base_url: str = "http://localhost:11434", no_of_fields= 4, embedding_model= "BAAI/bge-en-icl", llm_provider_name: PROVIDER_T= "novita", index_name: str= "test_search", embeddings_collection= "doc_chunks"):
+def rag_query_llm(db_client, llm_client, inference_client, user_query: str, document_id: str, required_fields_descriptions: list[str], model_name: str = "deepseek-ai/DeepSeek-R1-0528-Qwen3-8B", ollama_base_url: str = "http://localhost:11434", no_of_fields= 4, embedding_model= "BAAI/bge-en-icl", llm_provider_name: PROVIDER_T= "novita", index_name: str= "test_search", embeddings_collection= "doc_chunks", document_belongs_to_a_type= ""):
     """
     Performs a RAG (Retrieval Augmented Generation) query using a Hugging Face
     embedding model, ChromaDB for retrieval, and a local Ollama model for generation.
@@ -119,10 +120,10 @@ def rag_query_llm(db_client, llm_client, inference_client, user_query: str, docu
     aggregate_query_embedding= multi_embedding_average(llm_client, inference_client, required_fields_descriptions, model= embedding_model, embed_locally= embed_locally)
     print("Aggregate query embedding generated. length: ", len(aggregate_query_embedding))
 
-    create_vector_index(db_client[embeddings_collection], index_name, num_dimensions= len(aggregate_query_embedding))
+    create_vector_index(db_client[embeddings_collection], index_name, num_dimensions= len(aggregate_query_embedding), document_belongs_to_a_type= document_belongs_to_a_type)
 
     # check the order of args
-    relevant_chunks= search_within_document(db_client, aggregate_query_embedding, document_id, limit= no_of_fields, index_name= index_name, embeddings_collection_name= embeddings_collection)
+    relevant_chunks= search_within_document(db_client, aggregate_query_embedding, document_id, limit= no_of_fields, index_name= index_name, embeddings_collection_name= embeddings_collection, document_belongs_to_a_type= document_belongs_to_a_type)
     relevant_chunks= list(map(lambda x: x['chunk_text'], relevant_chunks))
 
     if not relevant_chunks:

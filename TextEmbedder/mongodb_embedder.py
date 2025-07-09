@@ -29,6 +29,7 @@ def search_within_document(
     limit: int = 5,
     index_name: str = "test_search",
     embeddings_collection_name: str= "doc_chunks",
+    document_belongs_to_a_type = "",
 ):
     """
     Performs a vector similarity search within the chunks of a specific document
@@ -42,6 +43,7 @@ def search_within_document(
         index_name: The name of your MongoDB Atlas Vector Search index.
                     You MUST have a vector search index created on the 'embedding' field
                     of the 'embeddings_collection' collection for this to work efficiently.
+        document_belongs_to_a_type: When search spaces intersect for different docIds, such that docId is an array field,
 
     Returns:
         A list of dictionaries, where each dictionary represents a matching chunk
@@ -50,10 +52,23 @@ def search_within_document(
     embeddings_collection = db_client[embeddings_collection_name]
 
     print(f"Searching within document (docId: {document_name_id})...")
+    # print(f" filter (slug: {document_belongs_to_a_type})...")
 
     # MongoDB Atlas Vector Search aggregation pipeline
     # The 'path' should point to the field containing the embeddings.
     # The 'filter' stage is crucial for searching within a specific document.
+    #
+    project_dict= {
+        '_id': 0,
+        'docId': 1,
+        'chunk_number': 1,
+        'chunk_text': 1,
+        'score': { '$meta': 'vectorSearchScore' } # Get the similarity score
+    }
+
+    if document_belongs_to_a_type:
+        project_dict['type']= 1
+
     pipeline = [
         {
             '$vectorSearch': {
@@ -66,25 +81,21 @@ def search_within_document(
                 'index': index_name,
 
                 #filter to search only within the specified document
-                'filter': {
-                    'docId': document_name_id
-                }
+                'filter':
+                    { "type": {"$in": [document_belongs_to_a_type ]} } if document_belongs_to_a_type else
+                    { 'docId': document_name_id }
             }
         },
 
         # to exclude the MongoDB internal _id
         {
-            '$project': {
-                '_id': 0,
-                'docId': 1,
-                'chunk_number': 1,
-                'chunk_text': 1,
-                'score': { '$meta': 'vectorSearchScore' } # Get the similarity score
-            }
+            '$project': project_dict
         }
     ]
 
+    # print("sesraching now:")
     results = list(embeddings_collection.aggregate(pipeline))
+    # print("search results: ", results)
 
     if not results:
         print(f"No relevant chunks found for document '{document_name_id}' with the given query.")
@@ -100,15 +111,18 @@ def search_within_document(
 
 
 
-def process_document_and_embed(db_client,
+def process_document_and_embed(
+    db_client,
     llm_client,
     inference_client,
     file_path: Path,
     chunk_size: int,
-    embedding_model: str = 'nomic-embed-text:v1.5',
+    embedding_model: str = 'BAAI/bge-en-icl',
     embeddings_collection_name= "doc_chunks",
     use_custom_id: str | None = None,
-    use_custom_input: str | None = None
+    use_custom_input: str | None = None,
+    document_belongs_to_a_type= "",
+    type_info= []
 ) -> list[dict]:
     """
     Processes an input document by chunking its text, generating embeddings using
@@ -228,13 +242,30 @@ def process_document_and_embed(db_client,
                 'chunk_text': chunk,
                 'embedding': embedding,
                 'chunk_id_global': chunk_id_global,
-                'chunk_id_doc_specific': chunk_id_doc_specific
+                'chunk_id_doc_specific': chunk_id_doc_specific,
             }
-            embeddings_collection.update_one(
-                {'docId': document_name_id, 'chunk_number': i + 1},
-                {'$set': doc_set},
-                upsert=True
-            )
+
+
+            # TBD: this is NOT pushing array, this is creating a "$push" field with type: "" object
+
+            if len(type_info) > 0:
+                embeddings_collection.update_one(
+                    {'docId': document_name_id, 'chunk_number': i + 1},
+                    {
+                        '$set': doc_set,
+                        '$push': {
+                            "type": type_info
+                        }
+                    },
+                    upsert=True
+                )
+            else:
+
+                embeddings_collection.update_one(
+                    {'docId': document_name_id, 'chunk_number': i + 1},
+                    {'$set': doc_set},
+                    upsert=True
+                )
             print(f"Successfully stored chunk {i+1} for '{file_path.name}' in MongoDB.")
             res.append({**doc_set, "docId": document_name_id, "chunk_number": i + 1})
 
