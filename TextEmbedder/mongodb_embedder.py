@@ -253,8 +253,8 @@ def process_document_and_embed(
                     {'docId': document_name_id, 'chunk_number': i + 1},
                     {
                         '$set': doc_set,
-                        '$push': {
-                            "type": type_info
+                        '$addToSet': {
+                            "type": { '$each': type_info }
                         }
                     },
                     upsert=True
