@@ -82,7 +82,13 @@ def multi_embedding_average(llm_client, inference_client, descriptions, model= "
 
 
 
-def rag_query_llm(db_client, llm_client, inference_client, user_query: str, document_id: str, required_fields_descriptions: list[str], model_name: str = "deepseek-ai/DeepSeek-R1-0528-Qwen3-8B", ollama_base_url: str = "http://localhost:11434", no_of_fields= 4, embedding_model= "BAAI/bge-en-icl", llm_provider_name: PROVIDER_T= "novita", index_name: str= "test_search", embeddings_collection= "doc_chunks", document_belongs_to_a_type= ""):
+def rag_query_llm(db_client, llm_client, inference_client,
+    user_query: str, document_id: str, required_fields_descriptions: list[str],
+    model_name: str = "deepseek-ai/DeepSeek-R1-0528-Qwen3-8B",
+    ollama_base_url: str = "http://localhost:11434", no_of_fields= 4,
+    embedding_model= "BAAI/bge-en-icl", llm_provider_name: PROVIDER_T= "novita",
+    index_name: str= "test_search", embeddings_collection= "doc_chunks",
+    document_belongs_to_a_type= "", prompt_prefix= ""):
     """
     Performs a RAG (Retrieval Augmented Generation) query using a Hugging Face
     embedding model, ChromaDB for retrieval, and a local Ollama model for generation.
@@ -139,6 +145,7 @@ def rag_query_llm(db_client, llm_client, inference_client, user_query: str, docu
     If you don't know the answer, just say that you don't know, don't try to make up an answer.
 
     Context:
+    {prompt_prefix}
     {context}
 
     Question: {user_query}

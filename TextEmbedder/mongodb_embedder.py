@@ -69,22 +69,27 @@ def search_within_document(
     if document_belongs_to_a_type:
         project_dict['type']= 1
 
+    vectorSearchParams= {
+        'queryVector': aggregate_query_embedding,
+        'path': 'embedding',
+
+        #number of nearest neighbors to consider
+        'numCandidates': 100,
+        'limit': limit,
+        'index': index_name,
+
+    }
+
+    #filter (if a type or docid filter is given) to search only within the specified documents search space
+    if document_name_id:
+        vectorSearchParams['filter']= (
+            { "type": {"$in": [document_belongs_to_a_type ]} } if document_belongs_to_a_type else
+            { 'docId': document_name_id }
+        )
+
     pipeline = [
         {
-            '$vectorSearch': {
-                'queryVector': aggregate_query_embedding,
-                'path': 'embedding',
-
-                #number of nearest neighbors to consider
-                'numCandidates': 100,
-                'limit': limit,
-                'index': index_name,
-
-                #filter to search only within the specified document
-                'filter':
-                    { "type": {"$in": [document_belongs_to_a_type ]} } if document_belongs_to_a_type else
-                    { 'docId': document_name_id }
-            }
+            '$vectorSearch': vectorSearchParams
         },
 
         # to exclude the MongoDB internal _id
@@ -92,6 +97,8 @@ def search_within_document(
             '$project': project_dict
         }
     ]
+
+
 
     # print("sesraching now:")
     results = list(embeddings_collection.aggregate(pipeline))
