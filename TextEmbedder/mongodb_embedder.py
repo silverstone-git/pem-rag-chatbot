@@ -49,6 +49,9 @@ def search_within_document(
         A list of dictionaries, where each dictionary represents a matching chunk
         from the specified document, including its text, docId, and score.
     """
+    if limit < 1:
+        return []
+
     embeddings_collection = db_client[embeddings_collection_name]
 
     print(f"Searching within document (docId: {document_name_id})...")
