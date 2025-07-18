@@ -1,4 +1,3 @@
-*.txt
 TextEmbedder/__pycache__/
 pdf2markdown/
 __pycache__/
