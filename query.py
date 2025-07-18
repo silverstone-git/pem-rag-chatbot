@@ -4,7 +4,7 @@ from huggingface_hub.inference._providers import PROVIDER_T
 import ollama
 import re
 from smolagents import InferenceClientModel, ToolCallingAgent, ActionStep, TaskStep
-from smolagents.default_tools import FinalAnswerTool, UserInputTool, VisitWebpageTool
+from smolagents.default_tools import VisitWebpageTool
 from pymongo import MongoClient
 from typing import Callable, Dict, Any, Optional, List
 import uuid
@@ -12,7 +12,7 @@ from datetime import datetime
 from smolagents.monitoring import Timing
 
 
-from search import brave_search_tool
+from pembot.search import brave_search_tool
 from pembot.TextEmbedder.mongodb_embedder import search_within_document
 import numpy as np
 from huggingface_hub import InferenceClient
