@@ -34,6 +34,8 @@ class Convertor():
     def __init__(self, myfile: Path | None= None, output_dir: Path | None= None, file_bytes: bytes | None= None, suffix: str | None= None, file_type: str | None= None, model_name: str | None = None):
 
         self.output= ""
+        self.suffix= suffix
+
 
         if model_name is None:
             # model_name=  "gemini-2.5-flash"
@@ -101,9 +103,10 @@ class Convertor():
         file_suffix= ''
         try:
             if not input_filepath.exists():
-                return f"Error: Input file not found at {input_filepath}"
+                file_suffix= self.suffix
+            else:
+                file_suffix = input_filepath.suffix.lower()
 
-            file_suffix = input_filepath.suffix.lower()
             current_engine: PandasReadEngineType = excel_ods_engine
 
             if file_suffix in ['.xls', '.xlsx', '.ods']:
