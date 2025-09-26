@@ -33,6 +33,7 @@ class Convertor():
 
     def __init__(self, myfile: Path | None= None, output_dir: Path | None= None, file_bytes: bytes | None= None, suffix: str | None= None, file_type: str | None= None, model_name: str | None = None):
 
+        self.input_filepath= None
         self.output= ""
         self.suffix= suffix
 
