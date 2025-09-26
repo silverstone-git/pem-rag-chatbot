@@ -54,6 +54,10 @@ class Convertor():
                     elif file_type == 'excel':
                         self.input_filepath= myfile
                         self.output= self.convert_excel_to_markdown()
+                        if myfile and output_dir:
+                            with open(output_dir / (myfile.stem + '.md'), "w") as output_file:
+                                output_file.write(self.output)
+                            
 
         elif output_dir is not None and myfile is not None:
             print("got output path for conversion: ", output_dir)
