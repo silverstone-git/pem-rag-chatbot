@@ -40,24 +40,21 @@ class Convertor():
             model_name=  "Nanonets-OCR-s"
 
         # file_type can be pdf, excel, etc.
-        if output_dir is None and myfile is None and file_bytes is not None and suffix is not None:
+        if file_bytes and suffix:
             with tempfile.TemporaryDirectory() as dp:
-                with tempfile.NamedTemporaryFile(suffix= suffix, mode= 'wb') as fp:
-                    fp.write(file_bytes)
-                    myfile= Path(fp.name)
-                    output_dir= Path(dp)
-                    if file_type == 'pdf':
-                        extractor= MarkdownPDFExtractor(str(myfile), output_path= str(output_dir), page_delimiter= "-- NEXT PAGE --", model_name= model_name)
-                        extractor.extract()
-                        with open(output_dir / (myfile.stem + '.md')) as output_file:
-                            self.output= output_file.read()
-                    elif file_type == 'excel':
-                        self.input_filepath= myfile
-                        self.output= self.convert_excel_to_markdown()
-                        if myfile and output_dir:
-                            with open(output_dir / (myfile.stem + '.md'), "w") as output_file:
-                                output_file.write(self.output)
-                            
+                output_dir = Path(dp)
+                myfile = output_dir / f"input{suffix}"
+                myfile.write_bytes(file_bytes)
+
+                if file_type == 'pdf':
+                    extractor = MarkdownPDFExtractor(str(myfile), output_path=str(output_dir), page_delimiter="-- NEXT PAGE --", model_name=model_name)
+                    extractor.extract()
+                    with open(output_dir / (myfile.stem + '.md')) as output_file:
+                        self.output = output_file.read()
+                elif file_type == 'excel':
+                    self.input_filepath = myfile
+                    self.output = self.convert_excel_to_markdown()
+
 
         elif output_dir is not None and myfile is not None:
             print("got output path for conversion: ", output_dir)
@@ -77,6 +74,9 @@ class Convertor():
 
             elif mt in EXCEL_FILE_TYPES:
                 self.output = self.convert_excel_to_markdown()
+                if myfile and output_dir:
+                    with open(output_dir / (myfile.stem + '.md'), "w") as output_file:
+                        output_file.write(self.output)
 
             else:
                 print(mt)
