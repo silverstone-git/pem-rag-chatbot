@@ -5,7 +5,6 @@ from pembot.pdf2markdown.extract import MarkdownPDFExtractor
 import os
 import pandas as pd
 from typing import Literal, Union
-import tempfile
 from datetime import datetime, date
 from tabulate import tabulate
 
@@ -36,6 +35,10 @@ class Convertor():
         self.input_filepath= None
         self.output= ""
         self.suffix= suffix
+        self.file_bytes= file_bytes
+
+        if (file_bytes and not suffix) or (file_bytes and not file_type):
+            raise Exception("wrong use of convertor library, have to give suffix and file_type along with the file_bytes")
 
 
         if model_name is None:
@@ -44,7 +47,7 @@ class Convertor():
 
         # file_type can be pdf, excel, etc.
         if file_bytes and suffix:
-            with tempfile.TemporaryDirectory() as dp:
+            with TemporaryDirectory() as dp:
                 output_dir = Path(dp)
                 myfile = output_dir / f"input{suffix}"
                 myfile.write_bytes(file_bytes)
@@ -102,42 +105,51 @@ class Convertor():
         markdown_output = []
 
         file_suffix= ''
+
         try:
-            if not input_filepath.exists():
-                file_suffix= self.suffix
-            else:
-                file_suffix = input_filepath.suffix.lower()
+            with TemporaryDirectory() as dp:
+                dp_path= Path(dp)
 
-            current_engine: PandasReadEngineType = excel_ods_engine
+                if input_filepath is None:
+                    file_suffix= self.suffix
+                    if file_suffix and self.file_bytes:
+                        input_filepath= dp_path / ("my_excel_file" + file_suffix)
+                        input_filepath.write_bytes(self.file_bytes)
+                    else:
+                        raise Exception("no input file name, and no file bytes either")
+                elif input_filepath.exists():
+                    file_suffix = input_filepath.suffix.lower()
 
-            if file_suffix in ['.xls', '.xlsx', '.ods']:
-                if file_suffix == '.ods':
-                    if current_engine is None:
-                        current_engine = 'odf'
-                    elif current_engine != 'odf':
-                        print(f"Warning: Specified engine '{current_engine}' may not be optimal for ODS. Forcing 'odf'.")
-                        current_engine = 'odf'
+                current_engine: PandasReadEngineType = excel_ods_engine
 
-                excel_file = pd.ExcelFile(input_filepath, engine=current_engine)
-                if not excel_file.sheet_names:
-                    return f"Warning: File '{input_filepath.name}' contains no sheets."
+                if file_suffix in ['.xls', '.xlsx', '.ods']:
+                    if file_suffix == '.ods':
+                        if current_engine is None:
+                            current_engine = 'odf'
+                        elif current_engine != 'odf':
+                            print(f"Warning: Specified engine '{current_engine}' may not be optimal for ODS. Forcing 'odf'.")
+                            current_engine = 'odf'
 
-                for sheet_name in excel_file.sheet_names:
-                    df = excel_file.parse(sheet_name)
-                    markdown_output.append(f"## {sheet_name}\n")
+                    excel_file = pd.ExcelFile(input_filepath, engine=current_engine)
+                    if not excel_file.sheet_names:
+                        return f"Warning: File '{input_filepath.name}' contains no sheets."
+
+                    for sheet_name in excel_file.sheet_names:
+                        df = excel_file.parse(sheet_name)
+                        markdown_output.append(f"## {sheet_name}\n")
+                        markdown_table = tabulate(df, headers='keys', tablefmt='pipe')
+                        markdown_output.append(markdown_table)
+                        markdown_output.append("\n")
+
+                    return "\n".join(markdown_output)
+
+                elif file_suffix == '.csv':
+                    df = pd.read_csv(input_filepath)
                     markdown_table = tabulate(df, headers='keys', tablefmt='pipe')
-                    markdown_output.append(markdown_table)
-                    markdown_output.append("\n")
+                    return markdown_table
 
-                return "\n".join(markdown_output)
-
-            elif file_suffix == '.csv':
-                df = pd.read_csv(input_filepath)
-                markdown_table = tabulate(df, headers='keys', tablefmt='pipe')
-                return markdown_table
-
-            else:
-                return f"Error: Unsupported file type: '{file_suffix}'. Please provide a CSV, XLS, XLSX, or ODS file."
+                else:
+                    return f"Error: Unsupported file type: '{file_suffix}'. Please provide a CSV, XLS, XLSX, or ODS file."
 
         except ImportError as ie:
             if 'odfpy' in str(ie).lower() and file_suffix == '.ods':
@@ -183,10 +195,10 @@ if __name__ == '__main__':
         #     conv= Convertor(file_bytes= imgpdf.read(), suffix= ".pdf", file_type= "pdf")
         #     print(conv.output)
 
-        # print("Test 2: JD pdf, bytes")
-        # with open("/home/cyto/dev/pembotdir/jds/PM Trainee.pdf", "rb") as imgpdf:
-        #     conv= Convertor(file_bytes= imgpdf.read(), suffix= ".pdf", file_type= "pdf")
-        #     print(conv.output)
+        print("Test 2: balance sheet, bytes")
+        with open("/home/cyto/Downloads/balance_sheet_2023-24_final.xlsx", "rb") as xl:
+            conv= Convertor(file_bytes= xl.read(), suffix= ".xlsx", file_type= "excel")
+            print(conv.output)
 
         print("Test 3: excel schedule, bytes")
         with open("/home/cyto/Downloads/Assignment schedule.xlsx", "rb") as imgpdf:
@@ -194,13 +206,13 @@ if __name__ == '__main__':
             print(conv.output)
 
         # without bytes example:
-        print("Test 4: scanned pdf, path")
-        conv= Convertor(myfile= Path('/home/cyto/Documents/scanned.pdf'), output_dir= Path('/home/cyto/Documents'))
-        print(conv.output)
-
-        print("Test 5: schedule excel, path")
-        conv= Convertor(myfile= Path('/home/cyto/Downloads/Assignment schedule.xlsx'), output_dir= Path('/home/cyto/Downloads'))
-        print(conv.output)
+        # print("Test 4: scanned pdf, path")
+        # conv= Convertor(myfile= Path('/home/cyto/Documents/scanned.pdf'), output_dir= Path('/home/cyto/Documents'))
+        # print(conv.output)
+        #
+        # print("Test 5: schedule excel, path")
+        # conv= Convertor(myfile= Path('/home/cyto/Downloads/Assignment schedule.xlsx'), output_dir= Path('/home/cyto/Downloads'))
+        # print(conv.output)
     except FileNotFoundError as fe:
         print("file not found, modify the driver code to get sample files to test:\n\n", fe)
     except Exception as e:

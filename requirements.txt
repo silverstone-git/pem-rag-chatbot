@@ -45,7 +45,7 @@ pandas==2.3.0
 pathlib==1.0.1
 pdfminer.six==20250506
 pdfplumber==0.11.7
-pembot==0.1.7
+pembot==0.1.8
 pillow==11.3.0
 primp==0.15.0
 pyasn1==0.6.1
