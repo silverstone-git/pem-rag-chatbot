@@ -53,6 +53,7 @@ class Convertor():
                 myfile.write_bytes(file_bytes)
 
                 if file_type == 'pdf':
+                    print("PDF extraction model is: ", model_name)
                     extractor = MarkdownPDFExtractor(str(myfile), output_path=str(output_dir), page_delimiter="-- NEXT PAGE --", model_name=model_name)
                     extractor.extract()
                     with open(output_dir / (myfile.stem + '.md')) as output_file:
