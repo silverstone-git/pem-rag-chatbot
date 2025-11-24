@@ -43,7 +43,8 @@ class Convertor():
 
         if model_name is None:
             # model_name=  "gemini-2.5-flash"
-            model_name=  "Nanonets-OCR-s"
+            # model_name=  "Nanonets-OCR-s"
+            model_name=  "deepseek-ai/DeepSeek-OCR"
 
         # file_type can be pdf, excel, etc.
         if file_bytes and suffix:
@@ -192,19 +193,19 @@ if __name__ == '__main__':
     print("Test Run Start:")
     try:
         # print("Test 1: scaned pdf page, bytes")
-        # with open("/home/cyto/Documents/scanned.pdf", "rb") as imgpdf:
-        #     conv= Convertor(file_bytes= imgpdf.read(), suffix= ".pdf", file_type= "pdf")
+        with open("/home/cyto/Documents/scanned.pdf", "rb") as imgpdf:
+            conv= Convertor(file_bytes= imgpdf.read(), suffix= ".pdf", file_type= "pdf")
+            print(conv.output)
+
+        # print("Test 2: balance sheet, bytes")
+        # with open("/home/cyto/Downloads/balance_sheet_2023-24_final.xlsx", "rb") as xl:
+        #     conv= Convertor(file_bytes= xl.read(), suffix= ".xlsx", file_type= "excel")
         #     print(conv.output)
-
-        print("Test 2: balance sheet, bytes")
-        with open("/home/cyto/Downloads/balance_sheet_2023-24_final.xlsx", "rb") as xl:
-            conv= Convertor(file_bytes= xl.read(), suffix= ".xlsx", file_type= "excel")
-            print(conv.output)
-
-        print("Test 3: excel schedule, bytes")
-        with open("/home/cyto/Downloads/Assignment schedule.xlsx", "rb") as imgpdf:
-            conv= Convertor(file_bytes= imgpdf.read(), suffix= ".xlsx", file_type= "excel")
-            print(conv.output)
+        #
+        # print("Test 3: excel schedule, bytes")
+        # with open("/home/cyto/Downloads/Assignment schedule.xlsx", "rb") as imgpdf:
+        #     conv= Convertor(file_bytes= imgpdf.read(), suffix= ".xlsx", file_type= "excel")
+        #     print(conv.output)
 
         # without bytes example:
         # print("Test 4: scanned pdf, path")
